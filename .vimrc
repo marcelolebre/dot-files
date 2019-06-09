@@ -92,3 +92,6 @@ set laststatus=2
 set backspace=indent,eol,start
 
 :set paste
+
+"Auto-refresh open vim files when they get changed
+:set autoread
