@@ -105,3 +105,8 @@ export PATH="$PATH:$HOME/.rvm/bin"
 
 export ERL_AFLAGS="-kernel shell_history enabled"
 
+alias mps="mix phx.server"
+
+alias mt="mix test"
+ 
+alias mc="mix coveralls"
