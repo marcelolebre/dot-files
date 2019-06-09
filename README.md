@@ -26,3 +26,9 @@ git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 ``` 
 
 5) Open iterm2 and on `Profiles>Colors>Color Presents` choose Solarized Dark
+
+6) Update repeat key speed
+```
+defaults write -g InitialKeyRepeat -int 10 # normal minimum is 15 (225 ms)
+defaults write -g KeyRepeat -int 1 # normal minimum is 2 (30 ms)
+```
