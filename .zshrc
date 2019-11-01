@@ -110,3 +110,8 @@ alias mps="mix phx.server"
 alias mt="mix test"
  
 alias mc="mix coveralls"
+
+# ASDF configs
+. /usr/local/opt/asdf/asdf.sh
+
+. /usr/local/opt/asdf/etc/bash_completion.d/asdf.bash
