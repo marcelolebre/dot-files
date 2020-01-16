@@ -34,6 +34,15 @@ set showmatch           " highlight matching [{()}]
 set incsearch           " search as characters are entered
 set hlsearch            " highlight matches
 
+" Use global clipboard
+if has ("clipboard")
+  set clipboard=unnamed " copy to the system clipboard
+
+  if has ("unnamedplus") " X11 Support
+    set clipboard+=unnamedplus
+  endif
+endif
+
 " move vertically by visual line
 nnoremap j gj
 nnoremap k gk
