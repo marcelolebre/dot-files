@@ -337,12 +337,44 @@ alias gcm='git commit -m'
 alias gd='git diff'
 alias gdc='git diff --cached'
 alias gp='git push'
+alias gpl='git pull'
 alias gco='git checkout'
 alias gcob='git checkout -b'
 alias gb='git branch'
 ALIASES
 
-    status_ok "Added 10 git aliases to .zshrc"
+    status_ok "Added 11 git aliases to .zshrc"
+}
+
+install_claude_code() {
+    step_header "14" "CLAUDE CODE CLI"
+
+    # Check if claude is already installed
+    if command -v claude &>/dev/null; then
+        local ver
+        ver="$(claude --version 2>/dev/null || echo "unknown")"
+        status_ok "Claude Code already installed  [${ver}]"
+        return
+    fi
+
+    # Native binary install (recommended by Anthropic)
+    status_run "Installing Claude Code via native installer..."
+    curl -fsSL https://claude.ai/install.sh | bash 2>/dev/null
+
+    # Ensure PATH includes claude binary location
+    if [[ -f "$HOME/.claude/bin/claude" ]]; then
+        export PATH="$HOME/.claude/bin:$PATH"
+    elif [[ -f "$HOME/.local/bin/claude" ]]; then
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+
+    if command -v claude &>/dev/null; then
+        status_ok "Claude Code installed"
+        status_run "Run 'claude' in a project dir to authenticate"
+    else
+        status_err "Claude Code install failed — try manually:"
+        status_warn "curl -fsSL https://claude.ai/install.sh | bash"
+    fi
 }
 
 # ─── MAIN ─────────────────────────────────────────────────────────────
@@ -369,8 +401,8 @@ main() {
     box_line ""
     box_sep
     box_line ""
-    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13"
-    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK FIX VIM TPM KEY GIT"
+    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14"
+    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK FIX VIM TPM KEY GIT CLC"
     box_line ""
     box_bottom
     printf '\n'
@@ -398,6 +430,7 @@ main() {
     setup_tmux
     set_macos_defaults
     add_git_aliases
+    install_claude_code
 
     # ─── Summary of issues ────────────────────────────────────────────
     if [[ ${#ERRORS[@]} -gt 0 || ${#WARNINGS[@]} -gt 0 ]]; then
@@ -444,6 +477,7 @@ main() {
     box_line "  ${D}2.${N} Launch tmux > press ${A}prefix + I${N} to install plugins"
     box_line "  ${D}3.${N} Open a new terminal to load Zsh config"
     box_line "  ${D}4.${N} Add Vim plugins to ${A}~/.vim/bundle/${N}"
+    box_line "  ${D}5.${N} Run ${A}claude${N} in a project dir to authenticate"
     box_line ""
     box_line "  ${D}Backups: $BACKUP_DIR${N}"
     box_line ""
