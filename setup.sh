@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 #
 # Setup script for https://github.com/marcelolebre/dot-files
-# Installs all dependencies and symlinks config files.
+# Installs all dependencies, symlinks config files, and patches
+# repo configs for the local machine. Safe to re-run at any time —
+# a git pull is done first, then all fixes are re-applied on top.
+#
 # Designed for macOS. Run with: bash setup.sh
 #
 set -euo pipefail
@@ -45,7 +48,6 @@ box_sep()    { p "${D}╠$(repeat_char '═' $W)╣${N}"; }
 box_line() {
     local txt="$1"
     local col=$((W + 2))
-    # Print left border + content, then jump to fixed column for right border
     printf '%b' "${D}║${N} ${txt}"
     printf '\033[%dG' "$col"
     printf '%b\n' "${D}║${N}"
@@ -81,7 +83,9 @@ run_quiet() {
     wait $! 2>/dev/null
 }
 
-# ─── INSTALL FUNCTIONS ────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════
+# INSTALL FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════
 
 install_homebrew() {
     step_header "01" "HOMEBREW PACKAGE MANAGER"
@@ -103,7 +107,6 @@ install_homebrew() {
 install_packages() {
     step_header "02" "CLI PACKAGES"
     local packages=(git vim tmux zsh reattach-to-user-namespace)
-
     for pkg in "${packages[@]}"; do
         if brew list "$pkg" &>/dev/null; then
             status_ok "${pkg}"
@@ -139,7 +142,7 @@ install_asdf() {
 }
 
 clone_dotfiles() {
-    step_header "05" "CLONE DOTFILES REPOSITORY"
+    step_header "05" "CLONE / UPDATE DOTFILES REPOSITORY"
     if [[ -d "$DOTFILES_DIR" ]]; then
         status_run "Repo exists — pulling latest..."
         git -C "$DOTFILES_DIR" pull --rebase &>/dev/null || status_warn "Pull failed; using existing copy"
@@ -181,45 +184,53 @@ set_default_shell() {
 
 link_dotfiles() {
     step_header "08" "SYMLINK DOTFILES"
-    local files=(.zshrc .vimrc .tmux.conf)
     mkdir -p "$BACKUP_DIR"
 
-    for f in "${files[@]}"; do
-        local src="$DOTFILES_DIR/$f" dest="$HOME/$f"
-        if [[ ! -f "$src" ]]; then
-            status_skip "$f  (not found in repo)"
-            continue
-        fi
+    # Dynamically find all dotfiles in the repo (excluding .git)
+    local count=0
+    for src in "$DOTFILES_DIR"/.*; do
+        local f
+        f="$(basename "$src")"
+
+        # Skip . .. .git .gitignore .github
+        [[ "$f" == "." || "$f" == ".." || "$f" == ".git" || "$f" == .git* ]] && continue
+        [[ ! -f "$src" ]] && continue
+
+        local dest="$HOME/$f"
+
         if [[ -e "$dest" && ! -L "$dest" ]]; then
             mv "$dest" "$BACKUP_DIR/$f"
             status_warn "Backed up existing $f"
         elif [[ -L "$dest" ]]; then
             rm "$dest"
         fi
+
         ln -s "$src" "$dest"
         status_ok "$f  →  $src"
+        count=$((count + 1))
     done
+
+    if [[ $count -eq 0 ]]; then
+        status_warn "No dotfiles found in repo"
+    fi
+
     rmdir "$BACKUP_DIR" 2>/dev/null || true
 }
 
-fix_zshrc_paths() {
-    step_header "09" "FIX HARDCODED PATHS"
-    local zshrc="$HOME/.zshrc"
+# ═══════════════════════════════════════════════════════════════════════
+# PATCH REPO CONFIGS — re-applied every run (after git pull)
+# ═══════════════════════════════════════════════════════════════════════
+
+patch_zshrc() {
+    step_header "09" "PATCH .zshrc"
+    local zshrc="$DOTFILES_DIR/.zshrc"
+
     if [[ ! -e "$zshrc" ]]; then
         status_warn ".zshrc not found — skipping"
         return
     fi
 
-    # If .zshrc is a symlink, replace it with a real copy so sed works reliably
-    if [[ -L "$zshrc" ]]; then
-        local target
-        target="$(readlink "$zshrc")"
-        cp "$target" "${zshrc}.tmp"
-        rm "$zshrc"
-        mv "${zshrc}.tmp" "$zshrc"
-        status_ok "Converted symlink to editable copy"
-    fi
-
+    # ── Fix hardcoded home directory ──────────────────────────────────
     if grep -q '/Users/marcelolebre' "$zshrc"; then
         sed -i '' "s|/Users/marcelolebre|$HOME|g" "$zshrc"
         status_ok "Replaced /Users/marcelolebre → $HOME"
@@ -227,12 +238,11 @@ fix_zshrc_paths() {
         status_ok "No hardcoded user paths found"
     fi
 
-    # Fix asdf sourcing — newer versions moved files to libexec/
+    # ── Fix asdf sourcing (newer versions use libexec/) ───────────────
     local asdf_prefix
     asdf_prefix="$(brew --prefix asdf 2>/dev/null || echo "")"
 
     if [[ -n "$asdf_prefix" ]]; then
-        # Find where asdf.sh actually lives
         local asdf_sh=""
         if [[ -f "${asdf_prefix}/libexec/asdf.sh" ]]; then
             asdf_sh="${asdf_prefix}/libexec/asdf.sh"
@@ -240,25 +250,19 @@ fix_zshrc_paths() {
             asdf_sh="${asdf_prefix}/asdf.sh"
         fi
 
-        # Find where completions actually live
         local asdf_comp=""
         if [[ -f "${asdf_prefix}/etc/bash_completion.d/asdf.bash" ]]; then
             asdf_comp="${asdf_prefix}/etc/bash_completion.d/asdf.bash"
-        elif [[ -d "${asdf_prefix}/share/zsh/site-functions" ]]; then
-            asdf_comp=""  # zsh completions auto-loaded via fpath
         fi
 
-        # Replace any asdf.sh sourcing line with correct path
         if [[ -n "$asdf_sh" ]]; then
             sed -i '' "s|^\. .*/asdf\.sh|. ${asdf_sh}|g" "$zshrc"
             status_ok "asdf.sh → $asdf_sh"
         else
-            # Comment out the broken line if asdf.sh can't be found
             sed -i '' "s|^\(\. .*/asdf\.sh\)|# \1  # asdf.sh not found|g" "$zshrc"
             status_warn "asdf.sh not found — line commented out"
         fi
 
-        # Replace or comment out completions line
         if [[ -n "$asdf_comp" ]]; then
             sed -i '' "s|^\. .*/asdf\.bash|. ${asdf_comp}|g" "$zshrc"
             status_ok "asdf completions → $asdf_comp"
@@ -269,65 +273,12 @@ fix_zshrc_paths() {
     else
         status_warn "asdf not found — paths unchanged"
     fi
-}
 
-setup_vim() {
-    step_header "10" "VIM + PATHOGEN PLUGIN MANAGER"
-    mkdir -p ~/.vim/autoload ~/.vim/bundle
-    if [[ -f ~/.vim/autoload/pathogen.vim ]]; then
-        status_ok "Pathogen already installed"
-    else
-        status_run "Downloading pathogen.vim..."
-        curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim
-        status_ok "Pathogen installed"
-    fi
-
-    # Install Solarized color scheme
-    if [[ -d ~/.vim/bundle/vim-colors-solarized ]]; then
-        status_ok "Solarized color scheme already installed"
-    else
-        status_run "Installing Solarized color scheme..."
-        run_quiet git clone https://github.com/altercation/vim-colors-solarized.git ~/.vim/bundle/vim-colors-solarized
-        status_ok "Solarized color scheme installed"
-    fi
-}
-
-setup_tmux() {
-    step_header "11" "TMUX PLUGIN MANAGER (TPM)"
-    if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
-        status_ok "TPM already installed"
-    else
-        status_run "Cloning TPM..."
-        run_quiet git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-        status_ok "TPM installed"
-    fi
-    status_warn "In tmux, press prefix + I to install plugins"
-}
-
-set_macos_defaults() {
-    step_header "12" "macOS KEYBOARD DEFAULTS"
-    defaults write -g InitialKeyRepeat -int 10
-    defaults write -g KeyRepeat -int 1
-    status_ok "InitialKeyRepeat → 10"
-    status_ok "KeyRepeat → 1"
-    status_warn "Log out or restart for changes to take effect"
-}
-
-add_git_aliases() {
-    step_header "13" "GIT ALIASES"
-    local zshrc="$HOME/.zshrc"
-    if [[ ! -e "$zshrc" ]]; then
-        status_warn ".zshrc not found — skipping"
-        return
-    fi
-
-    # Check if aliases are already present
+    # ── Git aliases ───────────────────────────────────────────────────
     if grep -q "alias gst='git status'" "$zshrc"; then
-        status_ok "Git aliases already configured"
-        return
-    fi
-
-    cat >> "$zshrc" << 'ALIASES'
+        status_ok "Git aliases already present"
+    else
+        cat >> "$zshrc" << 'ALIASES'
 
 # ─── Git Aliases ──────────────────────────────────────────────────────
 alias gst='git status'
@@ -342,14 +293,91 @@ alias gco='git checkout'
 alias gcob='git checkout -b'
 alias gb='git branch'
 ALIASES
+        status_ok "Added 11 git aliases"
+    fi
 
-    status_ok "Added 11 git aliases to .zshrc"
+    # ── Claude Code PATH ──────────────────────────────────────────────
+    local paths_to_add=("$HOME/.local/bin" "$HOME/.claude/bin")
+    for p in "${paths_to_add[@]}"; do
+        if ! grep -qF "$p" "$zshrc"; then
+            printf '\nexport PATH="%s:$PATH"\n' "$p" >> "$zshrc"
+            export PATH="$p:$PATH"
+            status_ok "Added $p to PATH"
+        else
+            status_ok "$p PATH already present"
+        fi
+    done
+}
+
+patch_tmux_conf() {
+    step_header "10" "PATCH .tmux.conf"
+    local tmuxconf="$DOTFILES_DIR/.tmux.conf"
+
+    if [[ ! -e "$tmuxconf" ]]; then
+        status_warn ".tmux.conf not found — skipping"
+        return
+    fi
+
+    # ── Fix prefix: Home → Ctrl+a (Mac has no Home key) ──────────────
+    if grep -q 'prefix Home' "$tmuxconf"; then
+        sed -i '' 's/set -g prefix Home/set -g prefix C-a/' "$tmuxconf"
+        sed -i '' 's/unbind C-b/unbind Home/' "$tmuxconf"
+        sed -i '' 's/bind-key Home send-prefix/bind-key C-a send-prefix/' "$tmuxconf"
+        sed -i '' 's/bind-key Home last-window/bind-key C-a last-window/' "$tmuxconf"
+        status_ok "Tmux prefix: Home → Ctrl+a"
+    else
+        status_ok "Tmux prefix already correct"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# SETUP TOOLS
+# ═══════════════════════════════════════════════════════════════════════
+
+setup_vim() {
+    step_header "11" "VIM + PATHOGEN PLUGIN MANAGER"
+    mkdir -p ~/.vim/autoload ~/.vim/bundle
+    if [[ -f ~/.vim/autoload/pathogen.vim ]]; then
+        status_ok "Pathogen already installed"
+    else
+        status_run "Downloading pathogen.vim..."
+        curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim
+        status_ok "Pathogen installed"
+    fi
+
+    if [[ -d ~/.vim/bundle/vim-colors-solarized ]]; then
+        status_ok "Solarized color scheme already installed"
+    else
+        status_run "Installing Solarized color scheme..."
+        run_quiet git clone https://github.com/altercation/vim-colors-solarized.git ~/.vim/bundle/vim-colors-solarized
+        status_ok "Solarized color scheme installed"
+    fi
+}
+
+setup_tmux() {
+    step_header "12" "TMUX PLUGIN MANAGER (TPM)"
+    if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
+        status_ok "TPM already installed"
+    else
+        status_run "Cloning TPM..."
+        run_quiet git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+        status_ok "TPM installed"
+    fi
+    status_warn "In tmux, press Ctrl+a then Shift+I to install plugins"
+}
+
+set_macos_defaults() {
+    step_header "13" "macOS KEYBOARD DEFAULTS"
+    defaults write -g InitialKeyRepeat -int 10
+    defaults write -g KeyRepeat -int 1
+    status_ok "InitialKeyRepeat → 10"
+    status_ok "KeyRepeat → 1"
+    status_warn "Log out or restart for changes to take effect"
 }
 
 install_claude_code() {
     step_header "14" "CLAUDE CODE CLI"
 
-    # Check if claude is already installed
     if command -v claude &>/dev/null; then
         local ver
         ver="$(claude --version 2>/dev/null || echo "unknown")"
@@ -357,11 +385,9 @@ install_claude_code() {
         return
     fi
 
-    # Native binary install (recommended by Anthropic)
     status_run "Installing Claude Code via native installer..."
     curl -fsSL https://claude.ai/install.sh | bash 2>/dev/null
 
-    # Ensure PATH includes claude binary location
     if [[ -f "$HOME/.claude/bin/claude" ]]; then
         export PATH="$HOME/.claude/bin:$PATH"
     elif [[ -f "$HOME/.local/bin/claude" ]]; then
@@ -375,23 +401,11 @@ install_claude_code() {
         status_err "Claude Code install failed — try manually:"
         status_warn "curl -fsSL https://claude.ai/install.sh | bash"
     fi
-
-    # Ensure PATH entries are in .zshrc for future sessions
-    local zshrc="$HOME/.zshrc"
-    local paths_to_add=("$HOME/.local/bin" "$HOME/.claude/bin")
-
-    for p in "${paths_to_add[@]}"; do
-        if [[ -e "$zshrc" ]] && ! grep -qF "$p" "$zshrc"; then
-            printf '\nexport PATH="%s:$PATH"\n' "$p" >> "$zshrc"
-            export PATH="$p:$PATH"
-            status_ok "Added $p to PATH in .zshrc"
-        else
-            status_ok "$p PATH already in .zshrc"
-        fi
-    done
 }
 
-# ─── MAIN ─────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════
 main() {
     clear
     printf '\n'
@@ -416,7 +430,7 @@ main() {
     box_sep
     box_line ""
     box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14"
-    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK FIX VIM TPM KEY GIT CLC"
+    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY CLC"
     box_line ""
     box_bottom
     printf '\n'
@@ -431,22 +445,33 @@ main() {
 
     box_top
 
+    # ── Install dependencies ──────────────────────────────────────────
     install_homebrew
     install_packages
     install_iterm2
     install_asdf
+
+    # ── Clone/pull repo (gets latest from git) ────────────────────────
     clone_dotfiles
+
+    # ── Shell & framework setup ───────────────────────────────────────
     install_oh_my_zsh
     set_default_shell
+
+    # ── Symlink configs (HOME → repo) ─────────────────────────────────
     link_dotfiles
-    fix_zshrc_paths
+
+    # ── Patch repo configs (re-applied after every git pull) ──────────
+    patch_zshrc
+    patch_tmux_conf
+
+    # ── Tool setup ────────────────────────────────────────────────────
     setup_vim
     setup_tmux
     set_macos_defaults
-    add_git_aliases
     install_claude_code
 
-    # ─── Summary of issues ────────────────────────────────────────────
+    # ── Issue summary ─────────────────────────────────────────────────
     if [[ ${#ERRORS[@]} -gt 0 || ${#WARNINGS[@]} -gt 0 ]]; then
         box_sep
         box_line ""
@@ -488,7 +513,7 @@ main() {
     box_line ""
     box_line "  ${A}NEXT STEPS:${N}"
     box_line "  ${D}1.${N} iTerm2 > Profiles > Colors > ${A}Solarized Dark${N}"
-    box_line "  ${D}2.${N} Launch tmux > press ${A}prefix + I${N} to install plugins"
+    box_line "  ${D}2.${N} Launch tmux > press ${A}Ctrl+a${N} then ${A}Shift+I${N}"
     box_line "  ${D}3.${N} Open a new terminal to load Zsh config"
     box_line "  ${D}4.${N} Add Vim plugins to ${A}~/.vim/bundle/${N}"
     box_line "  ${D}5.${N} Run ${A}claude${N} in a project dir to authenticate"
