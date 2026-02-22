@@ -375,6 +375,20 @@ install_claude_code() {
         status_err "Claude Code install failed — try manually:"
         status_warn "curl -fsSL https://claude.ai/install.sh | bash"
     fi
+
+    # Ensure PATH entries are in .zshrc for future sessions
+    local zshrc="$HOME/.zshrc"
+    local paths_to_add=("$HOME/.local/bin" "$HOME/.claude/bin")
+
+    for p in "${paths_to_add[@]}"; do
+        if [[ -e "$zshrc" ]] && ! grep -qF "$p" "$zshrc"; then
+            printf '\nexport PATH="%s:$PATH"\n' "$p" >> "$zshrc"
+            export PATH="$p:$PATH"
+            status_ok "Added $p to PATH in .zshrc"
+        else
+            status_ok "$p PATH already in .zshrc"
+        fi
+    done
 }
 
 # ─── MAIN ─────────────────────────────────────────────────────────────
