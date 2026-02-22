@@ -313,6 +313,38 @@ set_macos_defaults() {
     status_warn "Log out or restart for changes to take effect"
 }
 
+add_git_aliases() {
+    step_header "13" "GIT ALIASES"
+    local zshrc="$HOME/.zshrc"
+    if [[ ! -e "$zshrc" ]]; then
+        status_warn ".zshrc not found — skipping"
+        return
+    fi
+
+    # Check if aliases are already present
+    if grep -q "alias gst='git status'" "$zshrc"; then
+        status_ok "Git aliases already configured"
+        return
+    fi
+
+    cat >> "$zshrc" << 'ALIASES'
+
+# ─── Git Aliases ──────────────────────────────────────────────────────
+alias gst='git status'
+alias ga='git add -A'
+alias gc='git commit'
+alias gcm='git commit -m'
+alias gd='git diff'
+alias gdc='git diff --cached'
+alias gp='git push'
+alias gco='git checkout'
+alias gcob='git checkout -b'
+alias gb='git branch'
+ALIASES
+
+    status_ok "Added 10 git aliases to .zshrc"
+}
+
 # ─── MAIN ─────────────────────────────────────────────────────────────
 main() {
     clear
@@ -337,8 +369,8 @@ main() {
     box_line ""
     box_sep
     box_line ""
-    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12"
-    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK FIX VIM TPM KEY"
+    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13"
+    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK FIX VIM TPM KEY GIT"
     box_line ""
     box_bottom
     printf '\n'
@@ -365,6 +397,7 @@ main() {
     setup_vim
     setup_tmux
     set_macos_defaults
+    add_git_aliases
 
     # ─── Summary of issues ────────────────────────────────────────────
     if [[ ${#ERRORS[@]} -gt 0 || ${#WARNINGS[@]} -gt 0 ]]; then
