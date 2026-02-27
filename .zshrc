@@ -4,7 +4,7 @@
 export LC_ALL=en_US.UTF-8
 
 # Path to your oh-my-zsh installation.
-export ZSH=/Users/marcelolebre/.oh-my-zsh
+export ZSH=$HOME/.oh-my-zsh
 
 # Set name of the theme to load. Optionally, if you set this to "random"
 # it'll load a random theme each time that oh-my-zsh is loaded.
@@ -202,7 +202,120 @@ tmux-cheat() {
     unset -f _tc_line _tc_sep _tc_top _tc_bot _tc_hdr _tc_cmd _tc_sub
 }
 
-# ASDF configs
-. /usr/local/opt/asdf/asdf.sh
+# ─── Vim Cheat Sheet ──────────────────────────────────────────────────
+vim-cheat() {
+    local A='\033[1;33m'  # Amber bold
+    local D='\033[0;33m'  # Amber dim
+    local H='\033[0;43;30m' # Highlight: black on amber
+    local N='\033[0m'     # Reset
+    local COL=67          # Column for closing ║
 
-. /usr/local/opt/asdf/etc/bash_completion.d/asdf.bash
+    _vc_line() {
+        printf '%b' "${D}║${N} $1"
+        printf '\033[%dG' "$COL"
+        printf '%b\n' "${D}║${N}"
+    }
+    _vc_sep()  { printf '%b\n' "${D}╠$(printf '═%.0s' {1..64})╣${N}"; }
+    _vc_top()  { printf '%b\n' "${D}╔$(printf '═%.0s' {1..64})╗${N}"; }
+    _vc_bot()  { printf '%b\n' "${D}╚$(printf '═%.0s' {1..64})╝${N}"; }
+    _vc_hdr()  { _vc_sep; _vc_line "${H} $1 ${N}"; _vc_sep; }
+    _vc_cmd()  { _vc_line "  ${A}$(printf '%-22s' "$1")${N}  $2"; }
+    _vc_sub()  { _vc_line "  ${D}$1${N}"; }
+
+    _vc_top
+    _vc_line "  ${A}VIM CHEAT SHEET${N}"
+
+    _vc_hdr "MODES"
+    _vc_cmd "i / I" "Insert before cursor / line start"
+    _vc_cmd "a / A" "Append after cursor / line end"
+    _vc_cmd "o / O" "New line below / above"
+    _vc_cmd "v / V / C-v" "Visual / line / block mode"
+    _vc_cmd "Esc" "Return to Normal mode"
+    _vc_cmd ":" "Enter Command mode"
+
+    _vc_hdr "NAVIGATION"
+    _vc_sub "Basic:"
+    _vc_cmd "h j k l" "Left / down / up / right"
+    _vc_cmd "0 / ^/ \$" "Line start (col 0) / first char / end"
+    _vc_cmd "gg / G" "File top / bottom"
+    _vc_cmd ":<n>" "Jump to line n"
+    _vc_cmd "C-u / C-d" "Half-page up / down"
+    _vc_sub "Words:"
+    _vc_cmd "w / b" "Next / previous word start"
+    _vc_cmd "e / ge" "Next / previous word end"
+    _vc_cmd "W / B / E" "Same but WORD (whitespace-delimited)"
+    _vc_sub "Find on line:"
+    _vc_cmd "f<c> / F<c>" "Jump to char forward / backward"
+    _vc_cmd "t<c> / T<c>" "Jump before char forward / backward"
+    _vc_cmd "; / ," "Repeat find forward / backward"
+    _vc_sub "Brackets:"
+    _vc_cmd "%" "Jump to matching bracket"
+    _vc_cmd "{ / }" "Previous / next empty line (paragraph)"
+
+    _vc_hdr "EDITING"
+    _vc_sub "Change:"
+    _vc_cmd "r<c>" "Replace char under cursor"
+    _vc_cmd "cw / C" "Change word / to end of line"
+    _vc_cmd "cc / S" "Change whole line"
+    _vc_cmd "ci( / ca(" "Change inside / around ()"
+    _vc_sub "Delete:"
+    _vc_cmd "x / X" "Delete char / before cursor"
+    _vc_cmd "dw / D" "Delete word / to end of line"
+    _vc_cmd "dd" "Delete whole line"
+    _vc_cmd "di( / da(" "Delete inside / around ()"
+    _vc_sub "Copy & paste:"
+    _vc_cmd "yy / Y" "Yank (copy) line"
+    _vc_cmd "yw" "Yank word"
+    _vc_cmd "p / P" "Paste after / before cursor"
+    _vc_sub "Undo & redo:"
+    _vc_cmd "u" "Undo"
+    _vc_cmd "C-r" "Redo"
+    _vc_cmd "." "Repeat last change"
+    _vc_sub "Indent:"
+    _vc_cmd ">>" "Indent line"
+    _vc_cmd "<<" "De-indent line"
+    _vc_cmd "=G" "Auto-indent to end of file"
+
+    _vc_hdr "SEARCH & REPLACE"
+    _vc_cmd "/<pattern>" "Search forward"
+    _vc_cmd "?<pattern>" "Search backward"
+    _vc_cmd "n / N" "Next / previous match"
+    _vc_cmd "* / #" "Search word under cursor fwd / bwd"
+    _vc_cmd ":s/old/new/" "Replace first on line"
+    _vc_cmd ":s/old/new/g" "Replace all on line"
+    _vc_cmd ":%s/old/new/g" "Replace all in file"
+    _vc_cmd ":%s/old/new/gc" "Replace all (confirm each)"
+
+    _vc_hdr "FILE OPERATIONS"
+    _vc_cmd ":w" "Save"
+    _vc_cmd ":w <file>" "Save as"
+    _vc_cmd ":q" "Quit"
+    _vc_cmd ":wq / ZZ" "Save and quit"
+    _vc_cmd ":q!" "Quit without saving"
+    _vc_cmd ":e <file>" "Open file"
+    _vc_cmd ":r <file>" "Insert file contents below"
+
+    _vc_hdr "WINDOWS & TABS"
+    _vc_sub "Splits:"
+    _vc_cmd ":sp / :vsp" "Horizontal / vertical split"
+    _vc_cmd "C-w h/j/k/l" "Move between splits"
+    _vc_cmd "C-w =" "Equalise split sizes"
+    _vc_cmd "C-w q" "Close split"
+    _vc_sub "Tabs:"
+    _vc_cmd ":tabnew" "Open new tab"
+    _vc_cmd "gt / gT" "Next / previous tab"
+    _vc_cmd ":tabclose" "Close current tab"
+
+    _vc_bot
+    unset -f _vc_line _vc_sep _vc_top _vc_bot _vc_hdr _vc_cmd _vc_sub
+}
+
+# ASDF configs
+for _asdf_path in \
+    "$HOME/.asdf/asdf.sh" \
+    /opt/homebrew/opt/asdf/libexec/asdf.sh \
+    /usr/local/opt/asdf/libexec/asdf.sh \
+    /usr/local/opt/asdf/asdf.sh; do
+    [[ -f "$_asdf_path" ]] && . "$_asdf_path" && break
+done
+unset _asdf_path
