@@ -296,6 +296,18 @@ ALIASES
         status_ok "Added 11 git aliases"
     fi
 
+    # ── Update tmux cheat sheet prefix ──────────────────────────────
+    if grep -q 'tmux-cheat' "$zshrc"; then
+        # Update the header line showing the prefix
+        sed -i '' "s/(prefix = [^)]*)/(prefix = ${TMUX_PREFIX})/g" "$zshrc"
+        # Update all keybinding references in the cheat sheet
+        # First normalize both possible prefixes to a placeholder, then set the correct one
+        sed -i '' 's/"C-a /"__PREFIX__ /g' "$zshrc"
+        sed -i '' 's/"Home /"__PREFIX__ /g' "$zshrc"
+        sed -i '' "s/\"__PREFIX__ /\"${TMUX_PREFIX} /g" "$zshrc"
+        status_ok "Tmux cheat sheet prefix → ${TMUX_PREFIX}"
+    fi
+
     # ── Claude Code PATH ──────────────────────────────────────────────
     local paths_to_add=("$HOME/.local/bin" "$HOME/.claude/bin")
     for p in "${paths_to_add[@]}"; do
@@ -318,16 +330,24 @@ patch_tmux_conf() {
         return
     fi
 
-    # ── Fix prefix: Home → Ctrl+a (Mac has no Home key) ──────────────
-    if grep -q 'prefix Home' "$tmuxconf"; then
-        sed -i '' 's/set -g prefix Home/set -g prefix C-a/' "$tmuxconf"
-        sed -i '' 's/unbind C-b/unbind Home/' "$tmuxconf"
-        sed -i '' 's/bind-key Home send-prefix/bind-key C-a send-prefix/' "$tmuxconf"
-        sed -i '' 's/bind-key Home last-window/bind-key C-a last-window/' "$tmuxconf"
-        status_ok "Tmux prefix: Home → Ctrl+a"
+    # ── Set prefix based on keyboard choice ──────────────────────────
+    # Always override to ensure correct state
+    sed -i '' "s/^unbind .*/unbind C-b/" "$tmuxconf"
+    sed -i '' "s/^set -g prefix .*/set -g prefix ${TMUX_PREFIX}/" "$tmuxconf"
+    sed -i '' "s/^bind-key .* send-prefix/bind-key ${TMUX_PREFIX} send-prefix/" "$tmuxconf"
+    sed -i '' "s/^bind-key .* last-window/bind-key ${TMUX_PREFIX} last-window/" "$tmuxconf"
+
+    # Update comments to match
+    if [[ "$TMUX_PREFIX" == "Home" ]]; then
+        sed -i '' 's/^# Set .* as new prefix/# Set Home as new prefix/' "$tmuxconf"
+        sed -i '' 's/^# Double-tap .* to switch/# Double-tap Home to switch/' "$tmuxconf"
+        sed -i '' 's/^# Remove default prefix/# Remove default prefix/' "$tmuxconf"
     else
-        status_ok "Tmux prefix already correct"
+        sed -i '' 's/^# Set .* as new prefix/# Set C-a as new prefix/' "$tmuxconf"
+        sed -i '' 's/^# Double-tap .* to switch/# Double-tap C-a to switch/' "$tmuxconf"
     fi
+
+    status_ok "Tmux prefix → ${TMUX_PREFIX}"
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -363,7 +383,7 @@ setup_tmux() {
         run_quiet git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
         status_ok "TPM installed"
     fi
-    status_warn "In tmux, press Ctrl+a then Shift+I to install plugins"
+    status_warn "In tmux, press ${TMUX_PREFIX_DISPLAY} then Shift+I to install plugins"
 }
 
 set_macos_defaults() {
@@ -443,6 +463,18 @@ main() {
     read -rp "$(printf '  %bPress [ENTER] to begin or [Ctrl+C] to abort...%b ' "${A}" "${N}")"
     printf '\n'
 
+    # ── Keyboard layout prompt ───────────────────────────────────────
+    printf "  ${A}Are you using an Ergodox keyboard? ${D}(y/N)${N} "
+    read -r ergodox_answer
+    if [[ "$ergodox_answer" =~ ^[Yy](es)?$ ]]; then
+        TMUX_PREFIX="Home"
+        TMUX_PREFIX_DISPLAY="Home"
+    else
+        TMUX_PREFIX="C-a"
+        TMUX_PREFIX_DISPLAY="C-a"
+    fi
+    printf "  ${D}Tmux prefix set to: ${A}${TMUX_PREFIX_DISPLAY}${N}\n\n"
+
     box_top
 
     # ── Install dependencies ──────────────────────────────────────────
@@ -513,7 +545,7 @@ main() {
     box_line ""
     box_line "  ${A}NEXT STEPS:${N}"
     box_line "  ${D}1.${N} iTerm2 > Profiles > Colors > ${A}Solarized Dark${N}"
-    box_line "  ${D}2.${N} Launch tmux > press ${A}Ctrl+a${N} then ${A}Shift+I${N}"
+    box_line "  ${D}2.${N} Launch tmux > press ${A}${TMUX_PREFIX_DISPLAY}${N} then ${A}Shift+I${N}"
     box_line "  ${D}3.${N} Open a new terminal to load Zsh config"
     box_line "  ${D}4.${N} Add Vim plugins to ${A}~/.vim/bundle/${N}"
     box_line "  ${D}5.${N} Run ${A}claude${N} in a project dir to authenticate"
