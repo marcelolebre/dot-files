@@ -395,8 +395,35 @@ set_macos_defaults() {
     status_warn "Log out or restart for changes to take effect"
 }
 
+clone_agent_gossip() {
+    step_header "14" "AGENT GOSSIP REPOSITORY"
+    local repo_url="https://github.com/marcelolebre/agent-gossip.git"
+    local repo_dir="$HOME/Projects/agent-gossip"
+
+    mkdir -p "$HOME/Projects"
+
+    if [[ -d "$repo_dir" ]]; then
+        status_run "Repo exists — pulling latest..."
+        git -C "$repo_dir" pull --rebase &>/dev/null || status_warn "Pull failed; using existing copy"
+        status_ok "agent-gossip updated"
+    else
+        status_run "Cloning agent-gossip..."
+        run_quiet git clone "$repo_url" "$repo_dir"
+        status_ok "Cloned to $repo_dir"
+    fi
+
+    # Run the setup script to symlink agent-gossip to PATH
+    if [[ -x "$repo_dir/setup-agent-gossip" ]]; then
+        status_run "Running agent-gossip setup..."
+        bash "$repo_dir/setup-agent-gossip" &>/dev/null
+        status_ok "agent-gossip installed to PATH"
+    else
+        status_warn "setup-agent-gossip script not found"
+    fi
+}
+
 install_claude_code() {
-    step_header "14" "CLAUDE CODE CLI"
+    step_header "15" "CLAUDE CODE CLI"
 
     if command -v claude &>/dev/null; then
         local ver
@@ -449,8 +476,8 @@ main() {
     box_line ""
     box_sep
     box_line ""
-    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14"
-    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY CLC"
+    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14  15"
+    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY GSP CLC"
     box_line ""
     box_bottom
     printf '\n'
@@ -501,6 +528,7 @@ main() {
     setup_vim
     setup_tmux
     set_macos_defaults
+    clone_agent_gossip
     install_claude_code
 
     # ── Issue summary ─────────────────────────────────────────────────
@@ -549,6 +577,7 @@ main() {
     box_line "  ${D}3.${N} Open a new terminal to load Zsh config"
     box_line "  ${D}4.${N} Add Vim plugins to ${A}~/.vim/bundle/${N}"
     box_line "  ${D}5.${N} Run ${A}claude${N} in a project dir to authenticate"
+    box_line "  ${D}6.${N} Check ${A}~/Projects/agent-gossip${N} for agent-gossip"
     box_line ""
     box_line "  ${D}Backups: $BACKUP_DIR${N}"
     box_line ""
