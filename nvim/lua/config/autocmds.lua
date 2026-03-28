@@ -1,0 +1,2 @@
+-- Autocmds are automatically loaded after lazy.nvim startup
+-- Add custom autocmds here

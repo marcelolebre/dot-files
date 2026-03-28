@@ -422,6 +422,50 @@ clone_agent_gossip() {
     fi
 }
 
+setup_lazyvim() {
+    step_header "16" "NEOVIM + LAZYVIM"
+    local nvim_config="$HOME/.config/nvim"
+    local nvim_src="$DOTFILES_DIR/nvim"
+
+    # Install neovim
+    if brew list neovim &>/dev/null; then
+        status_ok "Neovim already installed"
+    else
+        status_run "Installing Neovim..."
+        run_quiet brew install neovim
+        status_ok "Neovim installed"
+    fi
+
+    # Install LazyVim dependencies
+    local lazy_deps=(ripgrep fd lazygit node)
+    for dep in "${lazy_deps[@]}"; do
+        if brew list "$dep" &>/dev/null; then
+            status_ok "${dep} already installed"
+        else
+            status_run "Installing ${dep}..."
+            run_quiet brew install "$dep"
+            status_ok "${dep} installed"
+        fi
+    done
+
+    # Symlink nvim config
+    mkdir -p "$HOME/.config"
+    if [[ -L "$nvim_config" ]]; then
+        status_ok "~/.config/nvim already symlinked"
+    elif [[ -d "$nvim_config" ]]; then
+        local bk="$HOME/.config/nvim.backup.$(date +%Y%m%d_%H%M%S)"
+        mv "$nvim_config" "$bk"
+        status_warn "Backed up existing nvim config → $bk"
+        ln -s "$nvim_src" "$nvim_config"
+        status_ok "~/.config/nvim → $nvim_src"
+    else
+        ln -s "$nvim_src" "$nvim_config"
+        status_ok "~/.config/nvim → $nvim_src"
+    fi
+
+    status_warn "Run 'nvim' to finish — LazyVim will install plugins on first launch"
+}
+
 install_claude_code() {
     step_header "15" "CLAUDE CODE CLI"
 
@@ -476,8 +520,8 @@ main() {
     box_line ""
     box_sep
     box_line ""
-    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14  15"
-    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY GSP CLC"
+    box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14  15  16"
+    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY GSP CLC NVim"
     box_line ""
     box_bottom
     printf '\n'
@@ -529,6 +573,7 @@ main() {
     setup_tmux
     set_macos_defaults
     clone_agent_gossip
+    setup_lazyvim
     install_claude_code
 
     # ── Issue summary ─────────────────────────────────────────────────
@@ -575,7 +620,7 @@ main() {
     box_line "  ${D}1.${N} iTerm2 > Profiles > Colors > ${A}Solarized Dark${N}"
     box_line "  ${D}2.${N} Launch tmux > press ${A}${TMUX_PREFIX_DISPLAY}${N} then ${A}Shift+I${N}"
     box_line "  ${D}3.${N} Open a new terminal to load Zsh config"
-    box_line "  ${D}4.${N} Add Vim plugins to ${A}~/.vim/bundle/${N}"
+    box_line "  ${D}4.${N} Run ${A}nvim${N} to finish LazyVim plugin installation"
     box_line "  ${D}5.${N} Run ${A}claude${N} in a project dir to authenticate"
     box_line "  ${D}6.${N} Check ${A}~/Projects/agent-gossip${N} for agent-gossip"
     box_line ""

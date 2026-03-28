@@ -310,6 +310,153 @@ vim-cheat() {
     unset -f _vc_line _vc_sep _vc_top _vc_bot _vc_hdr _vc_cmd _vc_sub
 }
 
+# ─── LazyVim / Neovim Cheat Sheet ────────────────────────────────────
+lazyvim-cheat() {
+    local A='\033[1;33m'  # Amber bold
+    local D='\033[0;33m'  # Amber dim
+    local H='\033[0;43;30m' # Highlight: black on amber
+    local N='\033[0m'     # Reset
+    local COL=67          # Column for closing ║
+
+    _lv_line() {
+        printf '%b' "${D}║${N} $1"
+        printf '\033[%dG' "$COL"
+        printf '%b\n' "${D}║${N}"
+    }
+    _lv_sep()  { printf '%b\n' "${D}╠$(printf '═%.0s' {1..64})╣${N}"; }
+    _lv_top()  { printf '%b\n' "${D}╔$(printf '═%.0s' {1..64})╗${N}"; }
+    _lv_bot()  { printf '%b\n' "${D}╚$(printf '═%.0s' {1..64})╝${N}"; }
+    _lv_hdr()  { _lv_sep; _lv_line "${H} $1 ${N}"; _lv_sep; }
+    _lv_cmd()  { _lv_line "  ${A}$(printf '%-22s' "$1")${N}  $2"; }
+    _lv_sub()  { _lv_line "  ${D}$1${N}"; }
+
+    _lv_top
+    _lv_line "  ${A}LAZYVIM / NEOVIM CHEAT SHEET${N}  ${D}(leader = Space)${N}"
+
+    _lv_hdr "NEOVIM BASICS"
+    _lv_sub "Modes (same as Vim):"
+    _lv_cmd "i / I" "Insert before cursor / line start"
+    _lv_cmd "a / A" "Append after cursor / line end"
+    _lv_cmd "o / O" "New line below / above"
+    _lv_cmd "v / V / C-v" "Visual / line / block mode"
+    _lv_cmd "Esc" "Return to Normal mode"
+    _lv_sub "Navigation:"
+    _lv_cmd "h j k l" "Left / down / up / right"
+    _lv_cmd "w / b / e" "Word forward / back / end"
+    _lv_cmd "0 / ^ / \$" "Line start / first char / end"
+    _lv_cmd "gg / G" "File top / bottom"
+    _lv_cmd "C-u / C-d" "Half-page up / down"
+    _lv_cmd "f<c> / t<c>" "Jump to / before char"
+    _lv_cmd "% " "Jump to matching bracket"
+    _lv_sub "Editing:"
+    _lv_cmd "dd / yy / p" "Delete / yank / paste line"
+    _lv_cmd "cw / dw" "Change / delete word"
+    _lv_cmd "ci( / di(" "Change / delete inside ()"
+    _lv_cmd "u / C-r" "Undo / redo"
+    _lv_cmd ". " "Repeat last change"
+    _lv_cmd ">> / <<" "Indent / de-indent line"
+    _lv_sub "Search:"
+    _lv_cmd "/ / ?" "Search forward / backward"
+    _lv_cmd "n / N" "Next / previous match"
+    _lv_cmd "* / #" "Search word under cursor"
+    _lv_cmd ":%s/old/new/g" "Replace all in file"
+
+    _lv_hdr "FILE EXPLORER (neo-tree)"
+    _lv_cmd "<leader>e" "Toggle file explorer sidebar"
+    _lv_cmd "<leader>E" "Focus file explorer"
+    _lv_sub "Inside neo-tree:"
+    _lv_cmd "a" "Create new file/directory"
+    _lv_cmd "d" "Delete file/directory"
+    _lv_cmd "r" "Rename"
+    _lv_cmd "c / m / p" "Copy / move / paste"
+    _lv_cmd "Enter" "Open file"
+    _lv_cmd "/ " "Filter"
+    _lv_cmd "H" "Toggle hidden files"
+    _lv_cmd "R" "Refresh"
+
+    _lv_hdr "FIND & SEARCH (Telescope)"
+    _lv_cmd "<leader>ff" "Find files"
+    _lv_cmd "<leader>fg" "Live grep (search in files)"
+    _lv_cmd "<leader>fb" "Find open buffers"
+    _lv_cmd "<leader>fr" "Recent files"
+    _lv_cmd "<leader>/" "Grep in project root"
+    _lv_cmd "<leader>:" "Command history"
+    _lv_cmd "<leader>sk" "Search keymaps"
+    _lv_cmd "<leader>sh" "Search help tags"
+    _lv_cmd "<leader>sm" "Search marks"
+    _lv_cmd "<leader>sR" "Search & replace (Spectre)"
+
+    _lv_hdr "BUFFERS & WINDOWS"
+    _lv_sub "Buffers:"
+    _lv_cmd "<leader>bb" "Switch buffer (picker)"
+    _lv_cmd "<S-h> / <S-l>" "Previous / next buffer"
+    _lv_cmd "<leader>bd" "Delete buffer"
+    _lv_cmd "<leader>bo" "Delete other buffers"
+    _lv_sub "Windows:"
+    _lv_cmd "<leader>w" "Window menu"
+    _lv_cmd "<leader>-" "Split horizontal"
+    _lv_cmd "<leader>|" "Split vertical"
+    _lv_cmd "<leader>wd" "Close window"
+    _lv_cmd "C-h/j/k/l" "Move between windows"
+    _lv_cmd "C-Up/Down" "Resize window height"
+    _lv_cmd "C-Left/Right" "Resize window width"
+    _lv_sub "Tabs:"
+    _lv_cmd "<leader><tab>l" "Last tab"
+    _lv_cmd "<leader><tab>f" "First tab"
+    _lv_cmd "<leader><tab><tab>" "New tab"
+    _lv_cmd "<leader><tab>d" "Close tab"
+    _lv_cmd "<leader><tab>] / [" "Next / previous tab"
+
+    _lv_hdr "CODE & LSP"
+    _lv_cmd "gd" "Go to definition"
+    _lv_cmd "gr" "Go to references"
+    _lv_cmd "gI" "Go to implementation"
+    _lv_cmd "gy" "Go to type definition"
+    _lv_cmd "gD" "Go to declaration"
+    _lv_cmd "K" "Hover documentation"
+    _lv_cmd "<leader>ca" "Code action"
+    _lv_cmd "<leader>cr" "Rename symbol"
+    _lv_cmd "<leader>cf" "Format file/selection"
+    _lv_cmd "<leader>cd" "Line diagnostics"
+    _lv_cmd "]d / [d" "Next / previous diagnostic"
+    _lv_cmd "]e / [e" "Next / previous error"
+    _lv_cmd "]w / [w" "Next / previous warning"
+
+    _lv_hdr "GIT (LazyVim + fugitive)"
+    _lv_cmd "<leader>gg" "Open Lazygit"
+    _lv_cmd "<leader>gf" "Lazygit current file"
+    _lv_cmd "<leader>gs" "Git status"
+    _lv_cmd "<leader>gb" "Git blame line"
+    _lv_cmd "<leader>gd" "Git diff"
+    _lv_cmd "]h / [h" "Next / previous hunk"
+    _lv_cmd "<leader>ghr" "Reset hunk"
+    _lv_cmd "<leader>ghp" "Preview hunk"
+
+    _lv_hdr "TERMINAL & UI"
+    _lv_cmd "<leader>ft" "Float terminal"
+    _lv_cmd "<leader>fT" "Terminal (cwd)"
+    _lv_cmd "C-/" "Toggle terminal"
+    _lv_cmd "jk (terminal)" "Exit terminal mode"
+    _lv_cmd "<leader>un" "Dismiss notifications"
+    _lv_cmd "<leader>ul" "Toggle line numbers"
+    _lv_cmd "<leader>uw" "Toggle word wrap"
+    _lv_cmd "<leader>ud" "Toggle diagnostics"
+    _lv_cmd "<leader>uc" "Toggle conceal"
+    _lv_cmd "<leader>uC" "Pick colorscheme"
+
+    _lv_hdr "LAZYVIM MANAGEMENT"
+    _lv_cmd ":Lazy" "Open plugin manager"
+    _lv_cmd ":Mason" "Open LSP/formatter installer"
+    _lv_cmd ":LazyExtras" "Browse optional plugins"
+    _lv_cmd ":checkhealth" "Diagnose setup issues"
+    _lv_cmd "<leader>l" "Open Lazy plugin manager"
+    _lv_cmd ":set background=dark" "Dark mode"
+    _lv_cmd ":set background=light" "Light mode"
+
+    _lv_bot
+    unset -f _lv_line _lv_sep _lv_top _lv_bot _lv_hdr _lv_cmd _lv_sub
+}
+
 # ASDF configs
 for _asdf_path in \
     "$HOME/.asdf/asdf.sh" \
