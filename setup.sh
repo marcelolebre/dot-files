@@ -301,8 +301,9 @@ ALIASES
         # Update the header line showing the prefix
         sed -i '' "s/(prefix = [^)]*)/(prefix = ${TMUX_PREFIX})/g" "$zshrc"
         # Update all keybinding references in the cheat sheet
-        # First normalize both possible prefixes to a placeholder, then set the correct one
+        # First normalize all possible prefixes to a placeholder, then set the correct one
         sed -i '' 's/"C-a /"__PREFIX__ /g' "$zshrc"
+        sed -i '' 's/"C-b /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"Home /"__PREFIX__ /g' "$zshrc"
         sed -i '' "s/\"__PREFIX__ /\"${TMUX_PREFIX} /g" "$zshrc"
         status_ok "Tmux cheat sheet prefix → ${TMUX_PREFIX}"
@@ -332,7 +333,12 @@ patch_tmux_conf() {
 
     # ── Set prefix based on keyboard choice ──────────────────────────
     # Always override to ensure correct state
-    sed -i '' "s/^unbind .*/unbind C-b/" "$tmuxconf"
+    if [[ "$TMUX_PREFIX" == "C-b" ]]; then
+        # Server mode: keep C-b as prefix (tmux default)
+        sed -i '' "s/^unbind .*$/# unbind C-b/" "$tmuxconf"
+    else
+        sed -i '' "s/^#* *unbind .*/unbind C-b/" "$tmuxconf"
+    fi
     sed -i '' "s/^set -g prefix .*/set -g prefix ${TMUX_PREFIX}/" "$tmuxconf"
     sed -i '' "s/^bind-key .* send-prefix/bind-key ${TMUX_PREFIX} send-prefix/" "$tmuxconf"
     sed -i '' "s/^bind-key .* last-window/bind-key ${TMUX_PREFIX} last-window/" "$tmuxconf"
@@ -342,6 +348,10 @@ patch_tmux_conf() {
         sed -i '' 's/^# Set .* as new prefix/# Set Home as new prefix/' "$tmuxconf"
         sed -i '' 's/^# Double-tap .* to switch/# Double-tap Home to switch/' "$tmuxconf"
         sed -i '' 's/^# Remove default prefix/# Remove default prefix/' "$tmuxconf"
+    elif [[ "$TMUX_PREFIX" == "C-b" ]]; then
+        sed -i '' 's/^# Set .* as new prefix/# Set C-b as new prefix/' "$tmuxconf"
+        sed -i '' 's/^# Double-tap .* to switch/# Double-tap C-b to switch/' "$tmuxconf"
+        sed -i '' 's/^# Remove default prefix/# Keep default prefix/' "$tmuxconf"
     else
         sed -i '' 's/^# Set .* as new prefix/# Set C-a as new prefix/' "$tmuxconf"
         sed -i '' 's/^# Double-tap .* to switch/# Double-tap C-a to switch/' "$tmuxconf"
@@ -535,15 +545,26 @@ main() {
     printf '\n'
 
     # ── Keyboard layout prompt ───────────────────────────────────────
-    printf "  ${A}Are you using an Ergodox keyboard? ${D}(y/N)${N} "
-    read -r ergodox_answer
-    if [[ "$ergodox_answer" =~ ^[Yy](es)?$ ]]; then
-        TMUX_PREFIX="Home"
-        TMUX_PREFIX_DISPLAY="Home"
-    else
-        TMUX_PREFIX="C-a"
-        TMUX_PREFIX_DISPLAY="C-a"
-    fi
+    printf "  ${A}What setup are you using?${N}\n"
+    printf "  ${D}1)${N} Ergodox keyboard\n"
+    printf "  ${D}2)${N} Regular Mac keyboard\n"
+    printf "  ${D}3)${N} Server\n"
+    printf "  ${A}Choose [1/2/3]:${N} "
+    read -r setup_answer
+    case "$setup_answer" in
+        1)
+            TMUX_PREFIX="Home"
+            TMUX_PREFIX_DISPLAY="Home"
+            ;;
+        3)
+            TMUX_PREFIX="C-b"
+            TMUX_PREFIX_DISPLAY="C-b"
+            ;;
+        *)
+            TMUX_PREFIX="C-a"
+            TMUX_PREFIX_DISPLAY="C-a"
+            ;;
+    esac
     printf "  ${D}Tmux prefix set to: ${A}${TMUX_PREFIX_DISPLAY}${N}\n\n"
 
     box_top
