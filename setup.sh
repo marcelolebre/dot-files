@@ -332,30 +332,72 @@ patch_tmux_conf() {
     fi
 
     # ── Set prefix based on keyboard choice ──────────────────────────
-    # Always override to ensure correct state
-    if [[ "$TMUX_PREFIX" == "C-b" ]]; then
-        # Server mode: keep C-b as prefix (tmux default)
-        sed -i '' "s/^unbind .*$/# unbind C-b/" "$tmuxconf"
-    else
-        sed -i '' "s/^#* *unbind .*/unbind C-b/" "$tmuxconf"
-    fi
-    sed -i '' "s/^set -g prefix .*/set -g prefix ${TMUX_PREFIX}/" "$tmuxconf"
-    sed -i '' "s/^bind-key .* send-prefix/bind-key ${TMUX_PREFIX} send-prefix/" "$tmuxconf"
-    sed -i '' "s/^bind-key .* last-window/bind-key ${TMUX_PREFIX} last-window/" "$tmuxconf"
+    # Replace the entire prefix block with the correct one for this environment.
+    # This removes any stale prefix/prefix2 lines so there are no conflicts.
+    local prefix_block
+    case "$TMUX_PREFIX" in
+        Home)
+            prefix_block=$(cat <<'BLOCK'
+# ─── Prefix ───────────────────────────────────────────────────────────
+# Remove default prefix
+unbind C-b
 
-    # Update comments to match
-    if [[ "$TMUX_PREFIX" == "Home" ]]; then
-        sed -i '' 's/^# Set .* as new prefix/# Set Home as new prefix/' "$tmuxconf"
-        sed -i '' 's/^# Double-tap .* to switch/# Double-tap Home to switch/' "$tmuxconf"
-        sed -i '' 's/^# Remove default prefix/# Remove default prefix/' "$tmuxconf"
-    elif [[ "$TMUX_PREFIX" == "C-b" ]]; then
-        sed -i '' 's/^# Set .* as new prefix/# Set C-b as new prefix/' "$tmuxconf"
-        sed -i '' 's/^# Double-tap .* to switch/# Double-tap C-b to switch/' "$tmuxconf"
-        sed -i '' 's/^# Remove default prefix/# Keep default prefix/' "$tmuxconf"
-    else
-        sed -i '' 's/^# Set .* as new prefix/# Set C-a as new prefix/' "$tmuxconf"
-        sed -i '' 's/^# Double-tap .* to switch/# Double-tap C-a to switch/' "$tmuxconf"
-    fi
+# Set Home as new prefix
+set -g prefix Home
+bind-key Home send-prefix
+
+# Double-tap Home to switch to last window
+bind-key Home last-window
+BLOCK
+)
+            ;;
+        C-b)
+            prefix_block=$(cat <<'BLOCK'
+# ─── Prefix ───────────────────────────────────────────────────────────
+# Keep default prefix (C-b) for server environment
+set -g prefix C-b
+bind-key C-b send-prefix
+
+# Double-tap C-b to switch to last window
+bind-key C-b last-window
+BLOCK
+)
+            ;;
+        *)
+            prefix_block=$(cat <<'BLOCK'
+# ─── Prefix ───────────────────────────────────────────────────────────
+# Remove default prefix
+unbind C-b
+
+# Set C-a as new prefix
+set -g prefix C-a
+bind-key C-a send-prefix
+
+# Double-tap C-a to switch to last window
+bind-key C-a last-window
+BLOCK
+)
+            ;;
+    esac
+
+    # Remove old prefix block (from "# ─── Prefix" to the first blank line) and any
+    # stale prefix-related lines that might exist outside the block
+    sed -i '' '/^# ─── Prefix/,/^$/d' "$tmuxconf"
+    sed -i '' '/^# Remove default prefix/d' "$tmuxconf"
+    sed -i '' '/^# Keep default prefix/d' "$tmuxconf"
+    sed -i '' '/^# Set .* as new prefix/d' "$tmuxconf"
+    sed -i '' '/^# Also allow .* as an alternate prefix/d' "$tmuxconf"
+    sed -i '' '/^# Double-tap .* to switch/d' "$tmuxconf"
+    sed -i '' '/^unbind C-b/d' "$tmuxconf"
+    sed -i '' '/^set -g prefix/d' "$tmuxconf"
+    sed -i '' '/^bind-key .* send-prefix/d' "$tmuxconf"
+    sed -i '' '/^bind-key .* last-window/d' "$tmuxconf"
+
+    # Insert the new prefix block at the top of the file
+    local tmpfile
+    tmpfile=$(mktemp)
+    printf '%s\n\n' "$prefix_block" | cat - "$tmuxconf" > "$tmpfile"
+    mv "$tmpfile" "$tmuxconf"
 
     status_ok "Tmux prefix → ${TMUX_PREFIX}"
 }
