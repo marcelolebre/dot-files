@@ -10,7 +10,20 @@
 set -euo pipefail
 
 DOTFILES_REPO="https://github.com/marcelolebre/dot-files.git"
-DOTFILES_DIR="$HOME/.dot-files"
+
+# If setup.sh is run from inside a checkout of this repo, operate on that
+# checkout. Otherwise (bootstrap from curl|bash or a standalone download),
+# fall back to ~/.dot-files — which step 05 will create via git clone.
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || _script_dir=""
+if [[ -n "$_script_dir" ]] \
+    && _repo_root="$(git -C "$_script_dir" rev-parse --show-toplevel 2>/dev/null)" \
+    && [[ "$(git -C "$_repo_root" config --get remote.origin.url 2>/dev/null)" == *"marcelolebre/dot-files"* ]]; then
+    DOTFILES_DIR="$_repo_root"
+else
+    DOTFILES_DIR="$HOME/.dot-files"
+fi
+unset _script_dir _repo_root
+
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d_%H%M%S)"
 
 # ─── Retro Amber Terminal Style ──────────────────────────────────────
