@@ -64,7 +64,7 @@ Re-applied on every run. The keyboard-layout prompt at the start of the script p
 | Choice | Prefix | Notes |
 | --- | --- | --- |
 | 1) Ergodox keyboard | `Home` | Uses the dedicated Home key |
-| 2) Regular Mac keyboard | **CapsLock** (bound as `F13`) | See step 13 — CapsLock is remapped to F13 at the OS level so tmux can bind it |
+| 2) Regular Mac keyboard | **CapsLock** (bound as `IC`/Insert) | See step 13 — CapsLock is remapped to Insert at the OS level so tmux can bind it |
 | 3) Server | `C-b` | tmux default, safe over SSH |
 | 4) ANSI keyboard | `C-a` | |
 
@@ -87,15 +87,15 @@ Speeds up key repeat for a better coding experience:
 - `KeyRepeat` → `1` (repeat interval, ~15 ms)
 
 If **CapsLock** was chosen as the tmux prefix in step 10, this step also:
-- Applies a `hidutil` remap of CapsLock (HID `0x700000039`) → F13 (HID `0x700000068`) for the current session.
-- Installs `~/Library/LaunchAgents/com.marcelolebre.capslock-to-f13.plist` so the remap reapplies on every login. No third-party tools (no Karabiner) are required — `hidutil` ships with macOS.
+- Applies a `hidutil` remap of CapsLock (HID `0x700000039`) → Insert (HID `0x700000049`) for the current session. Insert (not F13/F14) because tmux 3.x only knows key names `F1`–`F12`, but it does know `IC` (Insert); Mac keyboards have no physical Insert key, so nothing else claims it.
+- Installs `~/Library/LaunchAgents/com.marcelolebre.capslock-to-insert.plist` so the remap reapplies on every login. No third-party tools (no Karabiner) are required — `hidutil` ships with macOS.
 - If a different prefix is picked on a later run, the LaunchAgent is removed and the remap is cleared so CapsLock isn't left silently non-functional.
 
 To undo the CapsLock remap manually:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.marcelolebre.capslock-to-f13.plist
-rm ~/Library/LaunchAgents/com.marcelolebre.capslock-to-f13.plist
+launchctl unload ~/Library/LaunchAgents/com.marcelolebre.capslock-to-insert.plist
+rm ~/Library/LaunchAgents/com.marcelolebre.capslock-to-insert.plist
 hidutil property --set '{"UserKeyMapping":[]}'
 ```
 

@@ -316,7 +316,7 @@ ALIASES
     # ── Update tmux cheat sheet prefix ──────────────────────────────
     if grep -q 'tmux-cheat' "$zshrc"; then
         # TMUX_PREFIX_CHEAT is what users see in the cheat sheet (e.g. "⇪" for
-        # CapsLock, since tmux actually binds F13 under the hood).
+        # CapsLock, since tmux actually binds IC/Insert under the hood).
         local cheat="${TMUX_PREFIX_CHEAT:-$TMUX_PREFIX}"
         # Update the header line showing the prefix
         sed -i '' "s/(prefix = [^)]*)/(prefix = ${cheat})/g" "$zshrc"
@@ -376,23 +376,25 @@ bind-key Home last-window
 BLOCK
 )
             ;;
-        F13)
+        IC)
             prefix_block=$(cat <<'BLOCK'
 # ─── Prefix ───────────────────────────────────────────────────────────
 # Remove default prefix
 unbind C-b
 
-# CapsLock is remapped to F13 at the macOS level via hidutil (see setup.sh).
-# tmux binds F13 here — pressing CapsLock sends F13 to the terminal.
-set -g prefix F13
-bind-key F13 send-prefix
+# CapsLock is remapped to Insert at the macOS level via hidutil (see
+# setup.sh). tmux binds IC (Insert) here — pressing CapsLock sends Insert
+# to the terminal. Mac keyboards don't have an Insert key, so IC is a
+# safe, otherwise-unused prefix.
+set -g prefix IC
+bind-key IC send-prefix
 
 # C-a as failsafe alternate prefix (works without the hidutil remap)
 set -g prefix2 C-a
 bind-key C-a send-prefix -2
 
 # Double-tap CapsLock to switch to last window
-bind-key F13 last-window
+bind-key IC last-window
 BLOCK
 )
             ;;
@@ -446,7 +448,7 @@ BLOCK
     mv "$tmpfile" "$tmuxconf"
 
     status_ok "Tmux prefix → ${TMUX_PREFIX}"
-    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "F13" ]]; then
+    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "IC" ]]; then
         status_ok "Failsafe alternate prefix → C-a"
     fi
 }
@@ -494,10 +496,10 @@ set_macos_defaults() {
     status_ok "InitialKeyRepeat → 10"
     status_ok "KeyRepeat → 1"
 
-    # CapsLock → F13 remap lives with the keyboard defaults. Applied only
-    # when the chosen tmux prefix is F13; otherwise any prior remap is
-    # cleaned up so we don't leave CapsLock silently non-functional.
-    if [[ "${TMUX_PREFIX:-}" == "F13" ]]; then
+    # CapsLock → Insert remap lives with the keyboard defaults. Applied only
+    # when the chosen tmux prefix is IC (Insert); otherwise any prior remap
+    # is cleaned up so we don't leave CapsLock silently non-functional.
+    if [[ "${TMUX_PREFIX:-}" == "IC" ]]; then
         setup_capslock_remap
     else
         cleanup_capslock_remap
@@ -506,11 +508,15 @@ set_macos_defaults() {
     status_warn "Log out or restart for changes to take effect"
 }
 
-# CapsLock (HID 0x700000039) → F13 (HID 0x700000068). hidutil is a macOS
-# built-in (since Sierra), so no third-party tools are required. A
-# LaunchAgent re-applies the remap on every login.
-CAPSLOCK_AGENT_LABEL="com.marcelolebre.capslock-to-f13"
-CAPSLOCK_MAPPING='{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000068}]}'
+# CapsLock (HID 0x700000039) → Insert (HID 0x700000049). hidutil is a
+# macOS built-in (since Sierra), so no third-party tools are required. A
+# LaunchAgent re-applies the remap on every login. Insert is picked (not
+# F13/F14/etc.) because tmux 3.x only recognizes F1–F12 as key names, but
+# it does recognize IC (Insert) — and Mac keyboards have no physical
+# Insert key, so nothing else is claiming it.
+CAPSLOCK_AGENT_LABEL="com.marcelolebre.capslock-to-insert"
+CAPSLOCK_AGENT_LEGACY_LABELS=("com.marcelolebre.capslock-to-f13")
+CAPSLOCK_MAPPING='{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000049}]}'
 
 setup_capslock_remap() {
     local agent="$HOME/Library/LaunchAgents/${CAPSLOCK_AGENT_LABEL}.plist"
@@ -520,8 +526,19 @@ setup_capslock_remap() {
         return
     fi
 
+    # Remove any legacy CapsLock LaunchAgents so we don't have two mappings fighting.
+    local legacy
+    for legacy in "${CAPSLOCK_AGENT_LEGACY_LABELS[@]}"; do
+        local legacy_plist="$HOME/Library/LaunchAgents/${legacy}.plist"
+        if [[ -f "$legacy_plist" ]]; then
+            launchctl unload "$legacy_plist" 2>/dev/null || true
+            rm -f "$legacy_plist"
+            status_ok "Removed legacy LaunchAgent → ${legacy}"
+        fi
+    done
+
     hidutil property --set "$CAPSLOCK_MAPPING" >/dev/null
-    status_ok "CapsLock → F13 applied for current session"
+    status_ok "CapsLock → Insert applied for current session"
 
     mkdir -p "$HOME/Library/LaunchAgents"
     cat > "$agent" <<PLIST
@@ -553,12 +570,19 @@ PLIST
 }
 
 cleanup_capslock_remap() {
-    local agent="$HOME/Library/LaunchAgents/${CAPSLOCK_AGENT_LABEL}.plist"
-    if [[ -f "$agent" ]]; then
-        launchctl unload "$agent" 2>/dev/null || true
-        rm -f "$agent"
+    local removed=0
+    local label
+    for label in "$CAPSLOCK_AGENT_LABEL" "${CAPSLOCK_AGENT_LEGACY_LABELS[@]}"; do
+        local agent="$HOME/Library/LaunchAgents/${label}.plist"
+        if [[ -f "$agent" ]]; then
+            launchctl unload "$agent" 2>/dev/null || true
+            rm -f "$agent"
+            removed=1
+        fi
+    done
+    if (( removed )); then
         hidutil property --set '{"UserKeyMapping":[]}' >/dev/null 2>&1 || true
-        status_ok "Removed previous CapsLock → F13 remap"
+        status_ok "Removed previous CapsLock remap"
     fi
 }
 
@@ -730,7 +754,7 @@ main() {
             TMUX_PREFIX_CHEAT="Home"
             ;;
         2)
-            TMUX_PREFIX="F13"
+            TMUX_PREFIX="IC"
             TMUX_PREFIX_DISPLAY="⇪ CapsLock"
             TMUX_PREFIX_CHEAT="⇪"
             ;;
