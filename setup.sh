@@ -20,7 +20,7 @@ H='\033[0;43;30m' # Highlight: black on amber bg
 G='\033[1;32m'    # Green (success)
 E='\033[1;31m'    # Red (error)
 N='\033[0m'       # Reset
-W=68              # Box width
+W=78              # Box width
 WARNINGS=()
 ERRORS=()
 
@@ -145,8 +145,12 @@ clone_dotfiles() {
     step_header "05" "CLONE / UPDATE DOTFILES REPOSITORY"
     if [[ -d "$DOTFILES_DIR" ]]; then
         status_run "Repo exists — pulling latest..."
-        git -C "$DOTFILES_DIR" pull --rebase &>/dev/null || status_warn "Pull failed; using existing copy"
-        status_ok "Dotfiles repo updated"
+        local pull_output
+        if pull_output="$(git -C "$DOTFILES_DIR" pull --rebase 2>&1)"; then
+            status_ok "Dotfiles repo updated"
+        else
+            status_warn "Pull failed: $(echo "$pull_output" | tail -n1 | cut -c1-60)"
+        fi
     else
         status_run "Cloning repo..."
         run_quiet git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
@@ -298,15 +302,19 @@ ALIASES
 
     # ── Update tmux cheat sheet prefix ──────────────────────────────
     if grep -q 'tmux-cheat' "$zshrc"; then
+        # TMUX_PREFIX_CHEAT is what users see in the cheat sheet (e.g. "⇪" for
+        # CapsLock, since tmux actually binds F13 under the hood).
+        local cheat="${TMUX_PREFIX_CHEAT:-$TMUX_PREFIX}"
         # Update the header line showing the prefix
-        sed -i '' "s/(prefix = [^)]*)/(prefix = ${TMUX_PREFIX})/g" "$zshrc"
+        sed -i '' "s/(prefix = [^)]*)/(prefix = ${cheat})/g" "$zshrc"
         # Update all keybinding references in the cheat sheet
         # First normalize all possible prefixes to a placeholder, then set the correct one
         sed -i '' 's/"C-a /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"C-b /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"Home /"__PREFIX__ /g' "$zshrc"
-        sed -i '' "s/\"__PREFIX__ /\"${TMUX_PREFIX} /g" "$zshrc"
-        status_ok "Tmux cheat sheet prefix → ${TMUX_PREFIX}"
+        sed -i '' 's/"⇪ /"__PREFIX__ /g' "$zshrc"
+        sed -i '' "s/\"__PREFIX__ /\"${cheat} /g" "$zshrc"
+        status_ok "Tmux cheat sheet prefix → ${cheat}"
     fi
 
     # ── Claude Code PATH ──────────────────────────────────────────────
@@ -346,8 +354,32 @@ unbind C-b
 set -g prefix Home
 bind-key Home send-prefix
 
+# C-a as failsafe alternate prefix
+set -g prefix2 C-a
+bind-key C-a send-prefix -2
+
 # Double-tap Home to switch to last window
 bind-key Home last-window
+BLOCK
+)
+            ;;
+        F13)
+            prefix_block=$(cat <<'BLOCK'
+# ─── Prefix ───────────────────────────────────────────────────────────
+# Remove default prefix
+unbind C-b
+
+# CapsLock is remapped to F13 at the macOS level via hidutil (see setup.sh).
+# tmux binds F13 here — pressing CapsLock sends F13 to the terminal.
+set -g prefix F13
+bind-key F13 send-prefix
+
+# C-a as failsafe alternate prefix (works without the hidutil remap)
+set -g prefix2 C-a
+bind-key C-a send-prefix -2
+
+# Double-tap CapsLock to switch to last window
+bind-key F13 last-window
 BLOCK
 )
             ;;
@@ -387,6 +419,7 @@ BLOCK
     sed -i '' '/^# Keep default prefix/d' "$tmuxconf"
     sed -i '' '/^# Set .* as new prefix/d' "$tmuxconf"
     sed -i '' '/^# Also allow .* as an alternate prefix/d' "$tmuxconf"
+    sed -i '' '/^# C-a as failsafe/d' "$tmuxconf"
     sed -i '' '/^# Double-tap .* to switch/d' "$tmuxconf"
     sed -i '' '/^unbind C-b/d' "$tmuxconf"
     sed -i '' '/^set -g prefix/d' "$tmuxconf"
@@ -400,6 +433,9 @@ BLOCK
     mv "$tmpfile" "$tmuxconf"
 
     status_ok "Tmux prefix → ${TMUX_PREFIX}"
+    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "F13" ]]; then
+        status_ok "Failsafe alternate prefix → C-a"
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -444,7 +480,73 @@ set_macos_defaults() {
     defaults write -g KeyRepeat -int 1
     status_ok "InitialKeyRepeat → 10"
     status_ok "KeyRepeat → 1"
+
+    # CapsLock → F13 remap lives with the keyboard defaults. Applied only
+    # when the chosen tmux prefix is F13; otherwise any prior remap is
+    # cleaned up so we don't leave CapsLock silently non-functional.
+    if [[ "${TMUX_PREFIX:-}" == "F13" ]]; then
+        setup_capslock_remap
+    else
+        cleanup_capslock_remap
+    fi
+
     status_warn "Log out or restart for changes to take effect"
+}
+
+# CapsLock (HID 0x700000039) → F13 (HID 0x700000068). hidutil is a macOS
+# built-in (since Sierra), so no third-party tools are required. A
+# LaunchAgent re-applies the remap on every login.
+CAPSLOCK_AGENT_LABEL="com.marcelolebre.capslock-to-f13"
+CAPSLOCK_MAPPING='{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000068}]}'
+
+setup_capslock_remap() {
+    local agent="$HOME/Library/LaunchAgents/${CAPSLOCK_AGENT_LABEL}.plist"
+
+    if ! command -v hidutil &>/dev/null; then
+        status_warn "hidutil not available — skipping CapsLock remap"
+        return
+    fi
+
+    hidutil property --set "$CAPSLOCK_MAPPING" >/dev/null
+    status_ok "CapsLock → F13 applied for current session"
+
+    mkdir -p "$HOME/Library/LaunchAgents"
+    cat > "$agent" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${CAPSLOCK_AGENT_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/hidutil</string>
+        <string>property</string>
+        <string>--set</string>
+        <string>${CAPSLOCK_MAPPING}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+
+    launchctl unload "$agent" 2>/dev/null || true
+    if launchctl load "$agent" 2>/dev/null; then
+        status_ok "LaunchAgent installed → CapsLock remap persists across reboots"
+    else
+        status_warn "LaunchAgent install failed — remap is active this session only"
+    fi
+}
+
+cleanup_capslock_remap() {
+    local agent="$HOME/Library/LaunchAgents/${CAPSLOCK_AGENT_LABEL}.plist"
+    if [[ -f "$agent" ]]; then
+        launchctl unload "$agent" 2>/dev/null || true
+        rm -f "$agent"
+        hidutil property --set '{"UserKeyMapping":[]}' >/dev/null 2>&1 || true
+        status_ok "Removed previous CapsLock → F13 remap"
+    fi
 }
 
 clone_agent_gossip() {
@@ -475,7 +577,7 @@ clone_agent_gossip() {
 }
 
 setup_lazyvim() {
-    step_header "16" "NEOVIM + LAZYVIM"
+    step_header "15" "NEOVIM + LAZYVIM"
     local nvim_config="$HOME/.config/nvim"
     local nvim_src="$DOTFILES_DIR/nvim"
 
@@ -502,9 +604,23 @@ setup_lazyvim() {
 
     # Symlink nvim config
     mkdir -p "$HOME/.config"
+
+    if [[ ! -d "$nvim_src" ]]; then
+        status_warn "nvim/ missing from $DOTFILES_DIR — skipping symlink (check pull output above)"
+        return
+    fi
+
     if [[ -L "$nvim_config" ]]; then
-        status_ok "~/.config/nvim already symlinked"
-    elif [[ -d "$nvim_config" ]]; then
+        local current_target
+        current_target="$(readlink "$nvim_config")"
+        if [[ "$current_target" == "$nvim_src" && -d "$nvim_config/" ]]; then
+            status_ok "~/.config/nvim already symlinked correctly"
+        else
+            rm "$nvim_config"
+            ln -s "$nvim_src" "$nvim_config"
+            status_ok "Repaired ~/.config/nvim → $nvim_src"
+        fi
+    elif [[ -e "$nvim_config" ]]; then
         local bk="$HOME/.config/nvim.backup.$(date +%Y%m%d_%H%M%S)"
         mv "$nvim_config" "$bk"
         status_warn "Backed up existing nvim config → $bk"
@@ -519,7 +635,7 @@ setup_lazyvim() {
 }
 
 install_claude_code() {
-    step_header "15" "CLAUDE CODE CLI"
+    step_header "16" "CLAUDE CODE CLI"
 
     if command -v claude &>/dev/null; then
         local ver
@@ -573,7 +689,7 @@ main() {
     box_sep
     box_line ""
     box_line "  ${A}STEP${N}  ${D}|${N}  01  02  03  04  05  06  07  08  09  10  11  12  13  14  15  16"
-    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY GSP CLC NVim"
+    box_line "  ${A}TASK${N}  ${D}|${N}  BRW PKG ITM ASD DOT ZSH SHL LNK ZRC TMX VIM TPM KEY GSP NVim CLC"
     box_line ""
     box_bottom
     printf '\n'
@@ -589,22 +705,36 @@ main() {
     # ── Keyboard layout prompt ───────────────────────────────────────
     printf "  ${A}What setup are you using?${N}\n"
     printf "  ${D}1)${N} Ergodox keyboard\n"
-    printf "  ${D}2)${N} Regular Mac keyboard\n"
+    printf "  ${D}2)${N} Regular Mac keyboard  ${D}(remaps CapsLock → tmux prefix)${N}\n"
     printf "  ${D}3)${N} Server\n"
-    printf "  ${A}Choose [1/2/3]:${N} "
+    printf "  ${D}4)${N} ANSI keyboard\n"
+    printf "  ${A}Choose [1/2/3/4]:${N} "
     read -r setup_answer
     case "$setup_answer" in
         1)
             TMUX_PREFIX="Home"
             TMUX_PREFIX_DISPLAY="Home"
+            TMUX_PREFIX_CHEAT="Home"
+            ;;
+        2)
+            TMUX_PREFIX="F13"
+            TMUX_PREFIX_DISPLAY="⇪ CapsLock"
+            TMUX_PREFIX_CHEAT="⇪"
             ;;
         3)
             TMUX_PREFIX="C-b"
             TMUX_PREFIX_DISPLAY="C-b"
+            TMUX_PREFIX_CHEAT="C-b"
+            ;;
+        4)
+            TMUX_PREFIX="C-a"
+            TMUX_PREFIX_DISPLAY="C-a"
+            TMUX_PREFIX_CHEAT="C-a"
             ;;
         *)
             TMUX_PREFIX="C-a"
             TMUX_PREFIX_DISPLAY="C-a"
+            TMUX_PREFIX_CHEAT="C-a"
             ;;
     esac
     printf "  ${D}Tmux prefix set to: ${A}${TMUX_PREFIX_DISPLAY}${N}\n\n"
