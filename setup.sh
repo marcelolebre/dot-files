@@ -373,6 +373,7 @@ bind-key C-a send-prefix -2
 
 # Double-tap Home to switch to last window
 bind-key Home last-window
+# ─── /Prefix ──────────────────────────────────────────────────────────
 BLOCK
 )
             ;;
@@ -395,6 +396,7 @@ bind-key C-a send-prefix -2
 
 # Double-tap CapsLock to switch to last window
 bind-key IC last-window
+# ─── /Prefix ──────────────────────────────────────────────────────────
 BLOCK
 )
             ;;
@@ -407,6 +409,7 @@ bind-key C-b send-prefix
 
 # Double-tap C-b to switch to last window
 bind-key C-b last-window
+# ─── /Prefix ──────────────────────────────────────────────────────────
 BLOCK
 )
             ;;
@@ -422,27 +425,35 @@ bind-key C-a send-prefix
 
 # Double-tap C-a to switch to last window
 bind-key C-a last-window
+# ─── /Prefix ──────────────────────────────────────────────────────────
 BLOCK
 )
             ;;
     esac
 
-    # Remove old prefix block (from "# ─── Prefix" to the first blank line) and any
-    # stale prefix-related lines that might exist outside the block
-    sed -i '' '/^# ─── Prefix/,/^$/d' "$tmuxconf"
-    sed -i '' '/^# Remove default prefix/d' "$tmuxconf"
-    sed -i '' '/^# Keep default prefix/d' "$tmuxconf"
-    sed -i '' '/^# Set .* as new prefix/d' "$tmuxconf"
-    sed -i '' '/^# Also allow .* as an alternate prefix/d' "$tmuxconf"
-    sed -i '' '/^# C-a as failsafe/d' "$tmuxconf"
-    sed -i '' '/^# Double-tap .* to switch/d' "$tmuxconf"
-    sed -i '' '/^unbind C-b/d' "$tmuxconf"
-    sed -i '' '/^set -g prefix/d' "$tmuxconf"
-    sed -i '' '/^bind-key .* send-prefix/d' "$tmuxconf"
-    sed -i '' '/^bind-key .* last-window/d' "$tmuxconf"
+    # Remove any existing prefix block. Each block starts with
+    # "# ─── Prefix" and ends with "# ─── /Prefix" (new-style) OR, for
+    # legacy configs written before the closing sentinel existed, runs
+    # until the first line that doesn't look like a prefix-block line
+    # (comment, blank, or a prefix/bind-key directive). This handles
+    # multi-paragraph blocks cleanly — the old sed range `/^$/` stopped
+    # at the first blank line and stranded later comments.
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk '
+        /^# ─── Prefix/               { in_block = 1; next }
+        in_block && /^# ─── \/Prefix/ { in_block = 0; next }
+        in_block && /^$/              { next }
+        in_block && /^#/              { next }
+        in_block && /^unbind /        { next }
+        in_block && /^set -g prefix/  { next }
+        in_block && /^bind-key /      { next }
+        in_block                      { in_block = 0 }
+        { print }
+    ' "$tmuxconf" > "$tmpfile"
+    mv "$tmpfile" "$tmuxconf"
 
     # Insert the new prefix block at the top of the file
-    local tmpfile
     tmpfile=$(mktemp)
     printf '%s\n\n' "$prefix_block" | cat - "$tmuxconf" > "$tmpfile"
     mv "$tmpfile" "$tmuxconf"
