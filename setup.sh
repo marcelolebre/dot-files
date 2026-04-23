@@ -753,9 +753,9 @@ main() {
     # ── Keyboard layout prompt ───────────────────────────────────────
     printf "  ${A}What setup are you using?${N}\n"
     printf "  ${D}1)${N} Ergodox keyboard\n"
-    printf "  ${D}2)${N} Regular Mac keyboard  ${D}(remaps CapsLock → tmux prefix)${N}\n"
+    printf "  ${D}2)${N} Regular Mac keyboard\n"
     printf "  ${D}3)${N} Server\n"
-    printf "  ${D}4)${N} ANSI keyboard\n"
+    printf "  ${D}4)${N} ANSI keyboard  ${D}(remaps CapsLock → tmux prefix)${N}\n"
     printf "  ${A}Choose [1/2/3/4]:${N} "
     read -r setup_answer
     case "$setup_answer" in
@@ -765,9 +765,9 @@ main() {
             TMUX_PREFIX_CHEAT="Home"
             ;;
         2)
-            TMUX_PREFIX="IC"
-            TMUX_PREFIX_DISPLAY="⇪ CapsLock"
-            TMUX_PREFIX_CHEAT="⇪"
+            TMUX_PREFIX="C-a"
+            TMUX_PREFIX_DISPLAY="C-a"
+            TMUX_PREFIX_CHEAT="C-a"
             ;;
         3)
             TMUX_PREFIX="C-b"
@@ -775,9 +775,9 @@ main() {
             TMUX_PREFIX_CHEAT="C-b"
             ;;
         4)
-            TMUX_PREFIX="C-a"
-            TMUX_PREFIX_DISPLAY="C-a"
-            TMUX_PREFIX_CHEAT="C-a"
+            TMUX_PREFIX="IC"
+            TMUX_PREFIX_DISPLAY="⇪ CapsLock"
+            TMUX_PREFIX_CHEAT="⇪"
             ;;
         *)
             TMUX_PREFIX="C-a"
