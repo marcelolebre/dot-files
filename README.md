@@ -64,11 +64,11 @@ Re-applied on every run. The keyboard-layout prompt at the start of the script p
 | Choice | Prefix | Notes |
 | --- | --- | --- |
 | 1) Ergodox keyboard | `Home` | Uses the dedicated Home key |
-| 2) Regular Mac keyboard | `C-a` | |
+| 2) Regular Mac keyboard | `§` | The key above Tab on ISO Mac keyboards — single press, no modifier |
 | 3) Server | `C-b` | tmux default, safe over SSH |
 | 4) ANSI keyboard | **CapsLock** (bound as `IC`/Insert) | See step 13 — CapsLock is remapped to Insert at the OS level so tmux can bind it |
 
-Options 1 and 4 also bind `C-a` as `prefix2`, a failsafe that works even when the OS-level remap isn't in place (e.g. inside a remote shell).
+Options 1, 2, and 4 also bind `C-a` as `prefix2`, a failsafe that works even when the primary key isn't available (e.g. a remote shell or a keyboard without `§`).
 
 ### Step 11 — Vim + Pathogen
 Sets up Vim plugin management:
