@@ -66,7 +66,7 @@ Re-applied on every run. The keyboard-layout prompt at the start of the script p
 | 1) Ergodox keyboard | `Home` | Uses the dedicated Home key |
 | 2) Regular Mac keyboard | `§` | The key above Tab on ISO Mac keyboards — single press, no modifier |
 | 3) Server | `C-b` | tmux default, safe over SSH |
-| 4) ANSI keyboard | **CapsLock** (bound as `IC`/Insert) | See step 13 — CapsLock is remapped to Insert at the OS level so tmux can bind it |
+| 4) ANSI keyboard | **CapsLock** (Karabiner remap → `F18`) | See step 13 — Karabiner-Elements remaps CapsLock to F18 and tmux binds the F18 escape sequence as a user-key prefix |
 
 Options 1, 2, and 4 also bind `C-a` as `prefix2`, a failsafe that works even when the primary key isn't available (e.g. a remote shell or a keyboard without `§`).
 
@@ -77,9 +77,9 @@ Sets up Vim plugin management:
 - Clones the [Solarized color scheme](https://github.com/altercation/vim-colors-solarized) into `~/.vim/bundle/`.
 
 ### Step 12 — Tmux Plugin Manager (TPM)
-Clones [TPM](https://github.com/tmux-plugins/tpm) to `~/.tmux/plugins/tpm`.
+Clones [TPM](https://github.com/tmux-plugins/tpm) to `~/.tmux/plugins/tpm` and then runs TPM's headless installer (`~/.tmux/plugins/tpm/bin/install_plugins`) to fetch every `@plugin` entry declared in `.tmux.conf` — `tmux-sensible`, `tmux-resurrect`, `tmux-continuum`, `tmux-battery`, and `tmux-colors-solarized`. This means `tmux-continuum` starts auto-saving sessions immediately on first tmux launch; no `prefix + Shift+I` needed.
 
-> **Manual step after install:** Inside a tmux session, press `Ctrl+a` then `Shift+I` to install plugins.
+> If you add a new `@plugin` line later, press the tmux prefix then `Shift+I` inside a tmux session to pick it up — or just re-run `setup.sh`.
 
 ### Step 13 — macOS Keyboard Defaults
 Speeds up key repeat for a better coding experience:
@@ -87,19 +87,22 @@ Speeds up key repeat for a better coding experience:
 - `KeyRepeat` → `1` (repeat interval, ~15 ms)
 
 If **CapsLock** was chosen as the tmux prefix in step 10 (option 4), this step also:
-- Applies a `hidutil` remap of CapsLock (HID `0x700000039`) → Insert (HID `0x700000049`) for the current session. Insert (not F13/F14) because tmux 3.x only knows key names `F1`–`F12`, but it does know `IC` (Insert); Mac keyboards have no physical Insert key, so nothing else claims it.
-- Installs `~/Library/LaunchAgents/com.marcelolebre.capslock-to-insert.plist` so the remap reapplies on every login. No third-party tools (no Karabiner) are required — `hidutil` ships with macOS.
-- If a different prefix is picked on a later run, the LaunchAgent is removed and the remap is cleared so CapsLock isn't left silently non-functional.
+- Installs **Karabiner-Elements** via `brew install --cask karabiner-elements`.
+- Symlinks `karabiner/capslock-to-f18.json` into `~/.config/karabiner/assets/complex_modifications/` so the rule shows up in Karabiner's UI under **Settings → Complex Modifications → Add predefined rule** as *"Remap Caps Lock to F18"*. You enable it there once.
+- Karabiner-Elements needs **Input Monitoring** and **Accessibility** permissions on first launch — grant them in **System Settings → Privacy & Security** when prompted.
 
-To undo the CapsLock remap manually:
+Why Karabiner instead of `hidutil`: macOS rewrites HID `0x49` (Insert) into `NSHelpFunctionKey` on its way to apps, so a `hidutil` CapsLock→Insert remap shows up in the terminal as a private-use Unicode codepoint (U+F746) that tmux can't bind. Karabiner sits low enough to remap CapsLock to F18 cleanly, and tmux 3.6 binds the F18 escape sequence (`\e[17;2~`) via `user-keys[0]` since `F18` itself isn't a tmux key name.
+
+Older versions of this script used `hidutil` plus a LaunchAgent. Both are now purged on every run regardless of the prefix choice — so re-running `setup.sh` after upgrading is enough.
+
+To undo the CapsLock remap manually: open Karabiner-Elements → **Complex Modifications**, remove the *"Remap Caps Lock to F18"* rule (or quit Karabiner-Elements entirely). Optionally:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.marcelolebre.capslock-to-insert.plist
-rm ~/Library/LaunchAgents/com.marcelolebre.capslock-to-insert.plist
-hidutil property --set '{"UserKeyMapping":[]}'
+rm ~/.config/karabiner/assets/complex_modifications/capslock-to-f18.json
+brew uninstall --cask karabiner-elements
 ```
 
-> Log out or restart for these changes to take effect.
+> Log out or restart for the keyboard repeat changes to take effect.
 
 ### Step 14 — Claude Code CLI
 Installs the [Claude Code](https://claude.ai) CLI tool via its official installer script. Adds the binary to `$PATH`.
@@ -111,7 +114,6 @@ Installs the [Claude Code](https://claude.ai) CLI tool via its official installe
 ## After Running Setup
 
 1. Open **iTerm2** → `Profiles > Colors > Color Presets` → choose **Solarized Dark**
-2. Start tmux and press `Ctrl+a` then `Shift+I` to install tmux plugins
-3. Open a **new terminal window** to load the updated Zsh config
-4. Drop Vim plugins into `~/.vim/bundle/`
-5. Run `claude` in a project directory to log in to Claude Code
+2. Open a **new terminal window** to load the updated Zsh config
+3. Drop Vim plugins into `~/.vim/bundle/`
+4. Run `claude` in a project directory to log in to Claude Code

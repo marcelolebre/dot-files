@@ -377,25 +377,25 @@ bind-key Home last-window
 BLOCK
 )
             ;;
-        IC)
+        F18)
             prefix_block=$(cat <<'BLOCK'
 # ─── Prefix ───────────────────────────────────────────────────────────
 # Remove default prefix
 unbind C-b
 
-# CapsLock is remapped to Insert at the macOS level via hidutil (see
-# setup.sh). tmux binds IC (Insert) here — pressing CapsLock sends Insert
-# to the terminal. Mac keyboards don't have an Insert key, so IC is a
-# safe, otherwise-unused prefix.
-set -g prefix IC
-bind-key IC send-prefix
+# CapsLock is remapped to F18 via Karabiner-Elements (see setup.sh).
+# tmux 3.6 doesn't parse "F18" as a key name, but xterm-256color sends
+# F18 as \e[17;2~ — register that sequence as user-key 0 and bind it.
+set -s user-keys[0] "\e[17;2~"
+set -g prefix User0
+bind-key User0 send-prefix
 
-# C-a as failsafe alternate prefix (works without the hidutil remap)
+# C-a as failsafe alternate prefix (works without the Karabiner remap)
 set -g prefix2 C-a
 bind-key C-a send-prefix -2
 
 # Double-tap CapsLock to switch to last window
-bind-key IC last-window
+bind-key User0 last-window
 # ─── /Prefix ──────────────────────────────────────────────────────────
 BLOCK
 )
@@ -466,9 +466,10 @@ BLOCK
         in_block && /^# ─── \/Prefix/ { in_block = 0; next }
         in_block && /^$/              { next }
         in_block && /^#/              { next }
-        in_block && /^unbind /        { next }
-        in_block && /^set -g prefix/  { next }
-        in_block && /^bind-key /      { next }
+        in_block && /^unbind /         { next }
+        in_block && /^set -g prefix/   { next }
+        in_block && /^set -s user-keys/{ next }
+        in_block && /^bind-key /       { next }
         in_block                      { in_block = 0 }
         { print }
     ' "$tmuxconf" > "$tmpfile"
@@ -518,7 +519,22 @@ setup_tmux() {
         run_quiet git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
         status_ok "TPM installed"
     fi
-    status_warn "In tmux, press ${TMUX_PREFIX_DISPLAY} then Shift+I to install plugins"
+
+    # Install the @plugin entries declared in ~/.tmux.conf (tmux-resurrect,
+    # tmux-continuum, etc.) via TPM's headless installer — otherwise the
+    # conf declares plugins that never actually get fetched until the user
+    # remembers to press prefix + Shift+I inside tmux.
+    local tpm_install="$HOME/.tmux/plugins/tpm/bin/install_plugins"
+    if [[ -x "$tpm_install" ]]; then
+        status_run "Installing tmux plugins..."
+        if run_quiet "$tpm_install"; then
+            status_ok "Tmux plugins installed"
+        else
+            status_warn "TPM install failed — press ${TMUX_PREFIX_DISPLAY} then Shift+I in tmux to retry"
+        fi
+    else
+        status_warn "TPM install script not found — press ${TMUX_PREFIX_DISPLAY} then Shift+I in tmux"
+    fi
 }
 
 set_macos_defaults() {
@@ -528,83 +544,104 @@ set_macos_defaults() {
     status_ok "InitialKeyRepeat → 10"
     status_ok "KeyRepeat → 1"
 
-    # CapsLock → Insert remap lives with the keyboard defaults. Applied only
-    # when the chosen tmux prefix is IC (Insert); otherwise any prior remap
-    # is cleaned up so we don't leave CapsLock silently non-functional.
-    if [[ "${TMUX_PREFIX:-}" == "IC" ]]; then
-        setup_capslock_remap
-    else
-        cleanup_capslock_remap
+    # Always purge legacy hidutil/LaunchAgent CapsLock remaps from earlier
+    # versions of this script — otherwise an OS-level remap would silently
+    # fight Karabiner. Then install the Karabiner remap if option 4 was chosen.
+    cleanup_capslock_legacy_remaps
+    if [[ "${TMUX_PREFIX:-}" == "F18" ]]; then
+        setup_capslock_karabiner
     fi
 
     status_warn "Log out or restart for changes to take effect"
 }
 
-# CapsLock (HID 0x700000039) → Insert (HID 0x700000049). hidutil is a
-# macOS built-in (since Sierra), so no third-party tools are required. A
-# LaunchAgent re-applies the remap on every login. Insert is picked (not
-# F13/F14/etc.) because tmux 3.x only recognizes F1–F12 as key names, but
-# it does recognize IC (Insert) — and Mac keyboards have no physical
-# Insert key, so nothing else is claiming it.
-CAPSLOCK_AGENT_LABEL="com.marcelolebre.capslock-to-insert"
-CAPSLOCK_AGENT_LEGACY_LABELS=("com.marcelolebre.capslock-to-f13")
-CAPSLOCK_MAPPING='{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000049}]}'
+# Earlier versions of this script remapped CapsLock with `hidutil` plus a
+# LaunchAgent. That worked at the OS level but stops short of producing a
+# tmux-bindable key: HID 0x49 is Insert in the HID spec, but macOS rewrites
+# it to NSHelpFunctionKey on delivery, so the terminal sees a PUA char
+# (U+F746) that tmux can't bind. We've moved to Karabiner-Elements, which
+# remaps CapsLock → F18 cleanly. These labels are purged on every run so
+# leftover OS-level remaps don't compete with Karabiner.
+CAPSLOCK_LEGACY_AGENT_LABELS=(
+    "com.marcelolebre.capslock-to-insert"
+    "com.marcelolebre.capslock-to-f13"
+)
 
-setup_capslock_remap() {
-    local agent="$HOME/Library/LaunchAgents/${CAPSLOCK_AGENT_LABEL}.plist"
+karabiner_caps_lock_to_f18_active() {
+    local config="$HOME/.config/karabiner/karabiner.json"
+    [[ -f "$config" ]] || return 1
+    /usr/bin/python3 - "$config" <<'PY' 2>/dev/null
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+def maps_caps_to_f18(from_obj, to_list):
+    if not isinstance(from_obj, dict) or from_obj.get("key_code") != "caps_lock":
+        return False
+    return any(isinstance(t, dict) and t.get("key_code") == "f18" for t in (to_list or []))
+for p in d.get("profiles", []):
+    for sm in p.get("simple_modifications", []):
+        if maps_caps_to_f18(sm.get("from"), sm.get("to")):
+            sys.exit(0)
+    for rule in p.get("complex_modifications", {}).get("rules", []):
+        for m in rule.get("manipulators", []):
+            if maps_caps_to_f18(m.get("from"), m.get("to")):
+                sys.exit(0)
+sys.exit(1)
+PY
+}
 
-    if ! command -v hidutil &>/dev/null; then
-        status_warn "hidutil not available — skipping CapsLock remap"
+setup_capslock_karabiner() {
+    if [[ -d "/Applications/Karabiner-Elements.app" ]]; then
+        status_ok "Karabiner-Elements already installed"
+    else
+        status_run "Installing Karabiner-Elements..."
+        run_quiet brew install --cask karabiner-elements
+        status_ok "Karabiner-Elements installed"
+    fi
+
+    # Karabiner auto-discovers JSON files dropped into its
+    # complex_modifications assets dir; the user enables the rule via
+    # Settings → Complex Modifications → Add predefined rule.
+    local src="$DOTFILES_DIR/karabiner/capslock-to-f18.json"
+    local dest_dir="$HOME/.config/karabiner/assets/complex_modifications"
+    local dest="$dest_dir/capslock-to-f18.json"
+
+    if [[ ! -f "$src" ]]; then
+        status_warn "Karabiner rule missing in repo: $src"
         return
     fi
 
-    # Remove any legacy CapsLock LaunchAgents so we don't have two mappings fighting.
-    local legacy
-    for legacy in "${CAPSLOCK_AGENT_LEGACY_LABELS[@]}"; do
-        local legacy_plist="$HOME/Library/LaunchAgents/${legacy}.plist"
-        if [[ -f "$legacy_plist" ]]; then
-            launchctl unload "$legacy_plist" 2>/dev/null || true
-            rm -f "$legacy_plist"
-            status_ok "Removed legacy LaunchAgent → ${legacy}"
-        fi
-    done
+    mkdir -p "$dest_dir"
 
-    hidutil property --set "$CAPSLOCK_MAPPING" >/dev/null
-    status_ok "CapsLock → Insert applied for current session"
-
-    mkdir -p "$HOME/Library/LaunchAgents"
-    cat > "$agent" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>${CAPSLOCK_AGENT_LABEL}</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/bin/hidutil</string>
-        <string>property</string>
-        <string>--set</string>
-        <string>${CAPSLOCK_MAPPING}</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-</dict>
-</plist>
-PLIST
-
-    launchctl unload "$agent" 2>/dev/null || true
-    if launchctl load "$agent" 2>/dev/null; then
-        status_ok "LaunchAgent installed → CapsLock remap persists across reboots"
+    if [[ -L "$dest" && "$(readlink "$dest")" == "$src" ]]; then
+        status_ok "Karabiner rule already linked"
     else
-        status_warn "LaunchAgent install failed — remap is active this session only"
+        [[ -e "$dest" ]] && rm -f "$dest"
+        ln -s "$src" "$dest"
+        status_ok "Linked Karabiner rule → $dest"
     fi
+
+    # If any caps_lock → f18 remap is already active in karabiner.json,
+    # the user has nothing left to do — skip the enable/permissions
+    # reminders. Walk the JSON because the user could have configured
+    # this either via simple_modifications (one entry, no description)
+    # or via complex_modifications (a rule from our snippet). A simple
+    # description-string grep would miss the simple_modifications case.
+    if karabiner_caps_lock_to_f18_active; then
+        status_ok "Karabiner CapsLock → F18 remap already active"
+        return
+    fi
+
+    status_warn "Karabiner: open Karabiner-Elements → Settings → Complex Modifications → Add predefined rule, then enable 'Remap Caps Lock to F18'"
+    status_warn "Karabiner: grant Input Monitoring + Accessibility permissions in System Settings if prompted"
 }
 
-cleanup_capslock_remap() {
+cleanup_capslock_legacy_remaps() {
     local removed=0
     local label
-    for label in "$CAPSLOCK_AGENT_LABEL" "${CAPSLOCK_AGENT_LEGACY_LABELS[@]}"; do
+    for label in "${CAPSLOCK_LEGACY_AGENT_LABELS[@]}"; do
         local agent="$HOME/Library/LaunchAgents/${label}.plist"
         if [[ -f "$agent" ]]; then
             launchctl unload "$agent" 2>/dev/null || true
@@ -614,7 +651,7 @@ cleanup_capslock_remap() {
     done
     if (( removed )); then
         hidutil property --set '{"UserKeyMapping":[]}' >/dev/null 2>&1 || true
-        status_ok "Removed previous CapsLock remap"
+        status_ok "Removed legacy hidutil CapsLock remap"
     fi
 }
 
@@ -796,8 +833,8 @@ main() {
             TMUX_PREFIX_CHEAT="C-b"
             ;;
         4)
-            TMUX_PREFIX="IC"
-            TMUX_PREFIX_DISPLAY="⇪ CapsLock"
+            TMUX_PREFIX="F18"
+            TMUX_PREFIX_DISPLAY="⇪ CapsLock (F18 via Karabiner)"
             TMUX_PREFIX_CHEAT="⇪"
             ;;
         *)
@@ -880,11 +917,10 @@ main() {
     box_line ""
     box_line "  ${A}NEXT STEPS:${N}"
     box_line "  ${D}1.${N} iTerm2 > Profiles > Colors > ${A}Solarized Dark${N}"
-    box_line "  ${D}2.${N} Launch tmux > press ${A}${TMUX_PREFIX_DISPLAY}${N} then ${A}Shift+I${N}"
-    box_line "  ${D}3.${N} Open a new terminal to load Zsh config"
-    box_line "  ${D}4.${N} Run ${A}nvim${N} to finish LazyVim plugin installation"
-    box_line "  ${D}5.${N} Run ${A}claude${N} in a project dir to authenticate"
-    box_line "  ${D}6.${N} Check ${A}~/Projects/agent-gossip${N} for agent-gossip"
+    box_line "  ${D}2.${N} Open a new terminal to load Zsh config"
+    box_line "  ${D}3.${N} Run ${A}nvim${N} to finish LazyVim plugin installation"
+    box_line "  ${D}4.${N} Run ${A}claude${N} in a project dir to authenticate"
+    box_line "  ${D}5.${N} Check ${A}~/Projects/agent-gossip${N} for agent-gossip"
     box_line ""
     box_line "  ${D}Backups: $BACKUP_DIR${N}"
     box_line ""

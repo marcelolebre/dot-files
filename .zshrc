@@ -134,7 +134,7 @@ tmux-cheat() {
     _tc_sub()  { _tc_line "  ${D}$1${N}"; }
 
     _tc_top
-    _tc_line "  ${A}TMUX CHEAT SHEET${N}  ${D}(prefix = C-a)${N}"
+    _tc_line "  ${A}TMUX CHEAT SHEET${N}  ${D}(prefix = ⇪)${N}"
 
     _tc_hdr "SESSION MANAGEMENT"
     _tc_sub "Command line:"
@@ -145,50 +145,50 @@ tmux-cheat() {
     _tc_cmd "tmux kill-session -t <n>" "Kill session"
     _tc_cmd "tmux kill-server" "Stop server + all sessions"
     _tc_sub "Key bindings:"
-    _tc_cmd "C-a d" "Detach from session"
-    _tc_cmd "C-a \$" "Rename current session"
-    _tc_cmd "C-a s" "Browse sessions interactively"
-    _tc_cmd "C-a ) / (" "Next / previous session"
-    _tc_cmd "C-a L" "Switch to last session"
+    _tc_cmd "⇪ d" "Detach from session"
+    _tc_cmd "⇪ \$" "Rename current session"
+    _tc_cmd "⇪ s" "Browse sessions interactively"
+    _tc_cmd "⇪ ) / (" "Next / previous session"
+    _tc_cmd "⇪ L" "Switch to last session"
 
     _tc_hdr "WINDOW CONTROLS"
     _tc_sub "Create & manage:"
-    _tc_cmd "C-a c" "New window"
-    _tc_cmd "C-a ," "Rename window"
-    _tc_cmd "C-a &" "Close window"
-    _tc_cmd "C-a w" "List all windows"
-    _tc_cmd "C-a f" "Find window by name"
+    _tc_cmd "⇪ c" "New window"
+    _tc_cmd "⇪ ," "Rename window"
+    _tc_cmd "⇪ &" "Close window"
+    _tc_cmd "⇪ w" "List all windows"
+    _tc_cmd "⇪ f" "Find window by name"
     _tc_sub "Navigate:"
-    _tc_cmd "C-a n / p" "Next / previous window"
-    _tc_cmd "C-a l" "Toggle last active window"
-    _tc_cmd "C-a 0-9" "Jump to window by number"
+    _tc_cmd "⇪ n / p" "Next / previous window"
+    _tc_cmd "⇪ l" "Toggle last active window"
+    _tc_cmd "⇪ 0-9" "Jump to window by number"
     _tc_sub "Arrange:"
-    _tc_cmd "C-a ." "Move window to index"
-    _tc_cmd "C-a { / }" "Swap with prev / next window"
+    _tc_cmd "⇪ ." "Move window to index"
+    _tc_cmd "⇪ { / }" "Swap with prev / next window"
 
     _tc_hdr "PANE OPERATIONS"
     _tc_sub "Create:"
-    _tc_cmd "C-a %" "Split vertically"
+    _tc_cmd "⇪ %" "Split vertically"
     _tc_cmd 'C-a "' "Split horizontally"
-    _tc_cmd "C-a !" "Convert pane to window"
-    _tc_cmd "C-a x" "Close pane"
+    _tc_cmd "⇪ !" "Convert pane to window"
+    _tc_cmd "⇪ x" "Close pane"
     _tc_sub "Navigate:"
-    _tc_cmd "C-a ↑↓←→" "Move between panes"
-    _tc_cmd "C-a o" "Cycle to next pane"
-    _tc_cmd "C-a ;" "Jump to previous pane"
-    _tc_cmd "C-a q" "Show pane numbers"
-    _tc_cmd "C-a z" "Zoom / restore pane"
+    _tc_cmd "⇪ ↑↓←→" "Move between panes"
+    _tc_cmd "⇪ o" "Cycle to next pane"
+    _tc_cmd "⇪ ;" "Jump to previous pane"
+    _tc_cmd "⇪ q" "Show pane numbers"
+    _tc_cmd "⇪ z" "Zoom / restore pane"
     _tc_sub "Resize:"
-    _tc_cmd "C-a C-↑↓←→" "Resize pane (1 cell)"
-    _tc_cmd "C-a Alt+↑↓←→" "Resize pane (5 cells)"
+    _tc_cmd "⇪ C-↑↓←→" "Resize pane (1 cell)"
+    _tc_cmd "⇪ Alt+↑↓←→" "Resize pane (5 cells)"
     _tc_sub "Layouts:"
-    _tc_cmd "C-a Space" "Cycle through layouts"
-    _tc_cmd "C-a Alt+1..5" "Even-H / Even-V / Main-H / Main-V / Tiled"
+    _tc_cmd "⇪ Space" "Cycle through layouts"
+    _tc_cmd "⇪ Alt+1..5" "Even-H / Even-V / Main-H / Main-V / Tiled"
 
     _tc_hdr "COPY MODE & SCROLLBACK"
-    _tc_cmd "C-a [" "Enter copy mode"
+    _tc_cmd "⇪ [" "Enter copy mode"
     _tc_cmd "q" "Exit copy mode"
-    _tc_cmd "C-a ]" "Paste buffer"
+    _tc_cmd "⇪ ]" "Paste buffer"
     _tc_sub "In copy mode:"
     _tc_cmd "PgUp / PgDn" "Scroll pages"
     _tc_cmd "g / G" "Jump to top / bottom"
@@ -466,3 +466,20 @@ for _asdf_path in \
     [[ -f "$_asdf_path" ]] && . "$_asdf_path" && break
 done
 unset _asdf_path
+
+# ─── Git Aliases ──────────────────────────────────────────────────────
+alias gst='git status'
+alias ga='git add -A'
+alias gc='git commit'
+alias gcm='git commit -m'
+alias gd='git diff'
+alias gdc='git diff --cached'
+alias gp='git push'
+alias gpl='git pull'
+alias gco='git checkout'
+alias gcob='git checkout -b'
+alias gb='git branch'
+
+export PATH="/Users/marcelo/.local/bin:$PATH"
+
+export PATH="/Users/marcelo/.claude/bin:$PATH"

@@ -1,0 +1,20 @@
+{
+  "title": "CapsLock to F18 (tmux prefix)",
+  "rules": [
+    {
+      "description": "Remap Caps Lock to F18 — used as the tmux prefix",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "caps_lock",
+            "modifiers": { "optional": ["any"] }
+          },
+          "to": [
+            { "key_code": "f18" }
+          ]
+        }
+      ]
+    }
+  ]
+}
