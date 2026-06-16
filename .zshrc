@@ -103,6 +103,8 @@ alias gst="git status"
 
 alias docker_clean_images="for container_id in \$(docker images -f 'dangling=true' -q);do docker rmi \$container_id;done"
 
+alias superclaude="claude --dangerously-skip-permissions"
+
 export PATH="$PATH:$HOME/.rvm/bin"
 
 export ERL_AFLAGS="-kernel shell_history enabled"
