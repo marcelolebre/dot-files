@@ -316,15 +316,16 @@ ALIASES
     # ── Update tmux cheat sheet prefix ──────────────────────────────
     if grep -q 'tmux-cheat' "$zshrc"; then
         # TMUX_PREFIX_CHEAT is what users see in the cheat sheet (e.g. "⇪" for
-        # CapsLock, since tmux actually binds IC/Insert under the hood).
+        # CapsLock, since tmux actually binds the F18 escape sequence under the hood).
         local cheat="${TMUX_PREFIX_CHEAT:-$TMUX_PREFIX}"
         # Update the header line showing the prefix
         sed -i '' "s/(prefix = [^)]*)/(prefix = ${cheat})/g" "$zshrc"
         # Update all keybinding references in the cheat sheet
-        # First normalize all possible prefixes to a placeholder, then set the correct one
+        # First normalize every possible prefix to a placeholder, then set the correct one
         sed -i '' 's/"C-a /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"C-b /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"Home /"__PREFIX__ /g' "$zshrc"
+        sed -i '' 's/"§ /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"⇪ /"__PREFIX__ /g' "$zshrc"
         sed -i '' "s/\"__PREFIX__ /\"${cheat} /g" "$zshrc"
         status_ok "Tmux cheat sheet prefix → ${cheat}"
@@ -481,7 +482,8 @@ BLOCK
     mv "$tmpfile" "$tmuxconf"
 
     status_ok "Tmux prefix → ${TMUX_PREFIX}"
-    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "IC" ]]; then
+    # Home, §, and F18 all bind C-a as prefix2; C-b and the C-a default do not.
+    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "§" || "$TMUX_PREFIX" == "F18" ]]; then
         status_ok "Failsafe alternate prefix → C-a"
     fi
 }
