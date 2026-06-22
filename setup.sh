@@ -119,7 +119,7 @@ install_homebrew() {
 
 install_packages() {
     step_header "02" "CLI PACKAGES"
-    local packages=(git vim tmux zsh reattach-to-user-namespace)
+    local packages=(git vim tmux zsh reattach-to-user-namespace glab)
     for pkg in "${packages[@]}"; do
         if brew list "$pkg" &>/dev/null; then
             status_ok "${pkg}"
@@ -316,15 +316,16 @@ ALIASES
     # ── Update tmux cheat sheet prefix ──────────────────────────────
     if grep -q 'tmux-cheat' "$zshrc"; then
         # TMUX_PREFIX_CHEAT is what users see in the cheat sheet (e.g. "⇪" for
-        # CapsLock, since tmux actually binds IC/Insert under the hood).
+        # CapsLock, since tmux actually binds the F18 escape sequence under the hood).
         local cheat="${TMUX_PREFIX_CHEAT:-$TMUX_PREFIX}"
         # Update the header line showing the prefix
         sed -i '' "s/(prefix = [^)]*)/(prefix = ${cheat})/g" "$zshrc"
         # Update all keybinding references in the cheat sheet
-        # First normalize all possible prefixes to a placeholder, then set the correct one
+        # First normalize every possible prefix to a placeholder, then set the correct one
         sed -i '' 's/"C-a /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"C-b /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"Home /"__PREFIX__ /g' "$zshrc"
+        sed -i '' 's/"§ /"__PREFIX__ /g' "$zshrc"
         sed -i '' 's/"⇪ /"__PREFIX__ /g' "$zshrc"
         sed -i '' "s/\"__PREFIX__ /\"${cheat} /g" "$zshrc"
         status_ok "Tmux cheat sheet prefix → ${cheat}"
@@ -481,7 +482,8 @@ BLOCK
     mv "$tmpfile" "$tmuxconf"
 
     status_ok "Tmux prefix → ${TMUX_PREFIX}"
-    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "IC" ]]; then
+    # Home, §, and F18 all bind C-a as prefix2; C-b and the C-a default do not.
+    if [[ "$TMUX_PREFIX" == "Home" || "$TMUX_PREFIX" == "§" || "$TMUX_PREFIX" == "F18" ]]; then
         status_ok "Failsafe alternate prefix → C-a"
     fi
 }
@@ -736,6 +738,27 @@ setup_lazyvim() {
         ln -s "$nvim_src" "$nvim_config"
         status_ok "~/.config/nvim → $nvim_src"
     fi
+
+    # Install LSP servers via Mason so they're ready before first launch.
+    # "+Lazy! restore" bootstraps lazy.nvim and installs plugins (including
+    # mason.nvim) to the lockfile versions; MasonInstall runs synchronously
+    # in headless mode.
+    local lsp_servers=(elixir-ls)
+    local mason_pkgs="$HOME/.local/share/nvim/mason/packages"
+    for lsp in "${lsp_servers[@]}"; do
+        if [[ -d "$mason_pkgs/$lsp" ]]; then
+            status_ok "$lsp LSP already installed"
+        else
+            status_run "Installing plugins + $lsp LSP (headless nvim)..."
+            run_quiet nvim --headless "+Lazy! restore" +qa
+            run_quiet nvim --headless "+MasonInstall $lsp" +qa
+            if [[ -d "$mason_pkgs/$lsp" ]]; then
+                status_ok "$lsp LSP installed"
+            else
+                status_warn "$lsp install failed — run :MasonInstall $lsp in nvim"
+            fi
+        fi
+    done
 
     status_warn "Run 'nvim' to finish — LazyVim will install plugins on first launch"
 }

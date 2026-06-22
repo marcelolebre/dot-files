@@ -14,7 +14,7 @@ Safe to re-run at any time — it skips steps that are already complete and re-a
 
 ## What `setup.sh` Does
 
-The script runs 14 steps in order. Each step is skipped if already done.
+The script runs 16 steps in order. Each step is skipped if already done.
 
 ### Step 01 — Homebrew
 Installs [Homebrew](https://brew.sh) if not present, then runs `brew update` to refresh the package index.
@@ -26,6 +26,9 @@ Installs the following packages via Homebrew (skips any already installed):
 - `tmux` — terminal multiplexer
 - `zsh` — shell
 - `reattach-to-user-namespace` — tmux clipboard integration on macOS
+- `glab` — GitLab CLI
+
+> Neovim and its LazyVim dependencies (`ripgrep`, `fd`, `lazygit`, `node`) are installed later in step 15, not here.
 
 ### Step 03 — iTerm2
 Installs the [iTerm2](https://iterm2.com) terminal emulator via `brew install --cask iterm2`.
@@ -54,9 +57,10 @@ Creates symlinks from `$HOME` to every dotfile in `~/.dot-files/` (e.g. `~/.zshr
 Re-applied on every run after `git pull`. Makes the repo's `.zshrc` work on the local machine:
 
 1. **Hardcoded paths** — replaces any `/Users/marcelolebre` references with the actual `$HOME`.
-2. **asdf sourcing** — updates the `asdf.sh` and completion paths to match the local Homebrew install location.
-3. **Git aliases** — appends a set of short git aliases (`gst`, `ga`, `gc`, `gp`, etc.) if not already present.
+2. **asdf sourcing** — if Homebrew reports an asdf prefix, rewrites the `asdf.sh` and completion source paths to match it (commenting a line out if its file is missing under that prefix). If asdf isn't installed at all, the lines are left unchanged.
+3. **Git aliases** — appends 11 short git aliases (`gst`, `ga`, `gc`, `gcm`, `gd`, `gdc`, `gp`, `gpl`, `gco`, `gcob`, `gb`) if not already present.
 4. **PATH entries** — adds `~/.local/bin` and `~/.claude/bin` to `$PATH` if not already there.
+5. **Tmux cheat-sheet prefix** — rewrites the `tmux-cheat` helper's `(prefix = …)` header and its keybinding hints (those using `C-a`, `C-b`, `Home`, or `⇪`) to match the prefix chosen in step 10.
 
 ### Step 10 — Patch `.tmux.conf`
 Re-applied on every run. The keyboard-layout prompt at the start of the script picks the tmux prefix:
@@ -104,7 +108,18 @@ brew uninstall --cask karabiner-elements
 
 > Log out or restart for the keyboard repeat changes to take effect.
 
-### Step 14 — Claude Code CLI
+### Step 14 — Agent Gossip Repository
+Clones [agent-gossip](https://github.com/marcelolebre/agent-gossip) to `~/Projects/agent-gossip` (runs `git pull --rebase` if it already exists), then runs the repo's bundled `setup-agent-gossip` script, if present, to symlink it onto `$PATH`.
+
+### Step 15 — Neovim + LazyVim
+Sets up the [Neovim](https://neovim.io) / [LazyVim](https://www.lazyvim.org) editor:
+- Installs `neovim` plus the LazyVim dependencies `ripgrep`, `fd`, `lazygit`, and `node` via Homebrew.
+- Symlinks the repo's `nvim/` directory to `~/.config/nvim` (an existing real config is backed up to `~/.config/nvim.backup.<timestamp>` first; a wrong symlink is repaired).
+- When `elixir-ls` isn't already installed under Mason, headlessly bootstraps plugins (`nvim --headless +Lazy! restore`) to the `lazy-lock.json` versions, then installs the `elixir-ls` LSP via Mason (`+MasonInstall elixir-ls`).
+
+> First `nvim` launch finishes any remaining LazyVim plugin setup. If the Elixir LSP install failed, run `:MasonInstall elixir-ls` inside nvim.
+
+### Step 16 — Claude Code CLI
 Installs the [Claude Code](https://claude.ai) CLI tool via its official installer script. Adds the binary to `$PATH`.
 
 > **After install:** Run `claude` inside any project directory to authenticate.
@@ -115,5 +130,6 @@ Installs the [Claude Code](https://claude.ai) CLI tool via its official installe
 
 1. Open **iTerm2** → `Profiles > Colors > Color Presets` → choose **Solarized Dark**
 2. Open a **new terminal window** to load the updated Zsh config
-3. Drop Vim plugins into `~/.vim/bundle/`
+3. Run `nvim` to finish LazyVim plugin installation
 4. Run `claude` in a project directory to log in to Claude Code
+5. Check `~/Projects/agent-gossip` for agent-gossip
