@@ -537,6 +537,18 @@ setup_tmux() {
     else
         status_warn "TPM install script not found — press ${TMUX_PREFIX_DISPLAY} then Shift+I in tmux"
     fi
+
+    # Symlink the pane-border-label helper into ~/.tmux. .tmux.conf calls it
+    # from pane-border-format; it must be on disk and executable for the per-
+    # project pane colors to render (otherwise the border shows nothing).
+    local label_src="$DOTFILES_DIR/tmux/pane-label.sh"
+    if [[ -f "$label_src" ]]; then
+        chmod +x "$label_src"
+        ln -sfn "$label_src" "$HOME/.tmux/pane-label.sh"
+        status_ok "pane-label.sh  →  $label_src"
+    else
+        status_warn "tmux/pane-label.sh missing from repo — pane labels will be blank"
+    fi
 }
 
 set_macos_defaults() {
@@ -791,6 +803,48 @@ install_claude_code() {
     fi
 }
 
+# Install the anti-slopper writing skill from its canonical repo so Claude
+# Code picks it up at ~/.claude/skills/anti-slopper/SKILL.md. The repo keeps
+# SKILL.md at its root, so the skill dir is just a symlink to the checkout —
+# a git pull is enough to update it. ~/.claude/CLAUDE.md points the global
+# writing-style rules at this path.
+clone_anti_slopper() {
+    step_header "17" "ANTI-SLOPPER SKILL"
+    local repo_url="https://github.com/marcelolebre/anti-slopper.git"
+    local repo_dir="$HOME/Projects/anti-slopper"
+    local skill_dir="$HOME/.claude/skills/anti-slopper"
+
+    mkdir -p "$HOME/Projects"
+
+    if [[ -d "$repo_dir/.git" ]]; then
+        status_run "Repo exists — pulling latest..."
+        git -C "$repo_dir" pull --rebase &>/dev/null || status_warn "Pull failed; using existing copy"
+        status_ok "anti-slopper updated"
+    else
+        status_run "Cloning anti-slopper..."
+        run_quiet git clone "$repo_url" "$repo_dir"
+        status_ok "Cloned to $repo_dir"
+    fi
+
+    if [[ ! -f "$repo_dir/SKILL.md" ]]; then
+        status_warn "SKILL.md not found in repo — skipping skill symlink"
+        return
+    fi
+
+    # Point the Claude skill dir at the checkout (repoints an old symlink,
+    # backs up a real directory left there by a previous manual install).
+    mkdir -p "$HOME/.claude/skills"
+    if [[ -L "$skill_dir" ]]; then
+        rm "$skill_dir"
+    elif [[ -e "$skill_dir" ]]; then
+        mkdir -p "$BACKUP_DIR"
+        mv "$skill_dir" "$BACKUP_DIR/anti-slopper-skill"
+        status_warn "Backed up existing anti-slopper skill dir"
+    fi
+    ln -s "$repo_dir" "$skill_dir"
+    status_ok "skill  →  $repo_dir"
+}
+
 # ═══════════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════
@@ -897,6 +951,7 @@ main() {
     clone_agent_gossip
     setup_lazyvim
     install_claude_code
+    clone_anti_slopper
 
     # ── Issue summary ─────────────────────────────────────────────────
     if [[ ${#ERRORS[@]} -gt 0 || ${#WARNINGS[@]} -gt 0 ]]; then
@@ -944,6 +999,7 @@ main() {
     box_line "  ${D}3.${N} Run ${A}nvim${N} to finish LazyVim plugin installation"
     box_line "  ${D}4.${N} Run ${A}claude${N} in a project dir to authenticate"
     box_line "  ${D}5.${N} Check ${A}~/Projects/agent-gossip${N} for agent-gossip"
+    box_line "  ${D}6.${N} Anti-slopper skill lives at ${A}~/Projects/anti-slopper${N}"
     box_line ""
     box_line "  ${D}Backups: $BACKUP_DIR${N}"
     box_line ""

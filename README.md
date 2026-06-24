@@ -14,7 +14,7 @@ Safe to re-run at any time — it skips steps that are already complete and re-a
 
 ## What `setup.sh` Does
 
-The script runs 16 steps in order. Each step is skipped if already done.
+The script runs 17 steps in order. Each step is skipped if already done.
 
 ### Step 01 — Homebrew
 Installs [Homebrew](https://brew.sh) if not present, then runs `brew update` to refresh the package index.
@@ -124,6 +124,9 @@ Installs the [Claude Code](https://claude.ai) CLI tool via its official installe
 
 > **After install:** Run `claude` inside any project directory to authenticate.
 
+### Step 17 — Anti-Slopper Skill
+Clones [anti-slopper](https://github.com/marcelolebre/anti-slopper) to `~/Projects/anti-slopper` (runs `git pull --rebase` if it already exists), then symlinks `~/.claude/skills/anti-slopper` to the checkout so Claude Code loads the writing-style skill from `SKILL.md`. The global `~/.claude/CLAUDE.md` rules point at this path.
+
 ---
 
 ## After Running Setup
@@ -133,3 +136,4 @@ Installs the [Claude Code](https://claude.ai) CLI tool via its official installe
 3. Run `nvim` to finish LazyVim plugin installation
 4. Run `claude` in a project directory to log in to Claude Code
 5. Check `~/Projects/agent-gossip` for agent-gossip
+6. The anti-slopper writing skill lives at `~/Projects/anti-slopper`
