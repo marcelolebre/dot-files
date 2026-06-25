@@ -803,13 +803,35 @@ install_claude_code() {
     fi
 }
 
+install_codex() {
+    step_header "17" "CODEX CLI"
+
+    if command -v codex &>/dev/null; then
+        local ver
+        ver="$(codex --version 2>/dev/null || echo "unknown")"
+        status_ok "Codex already installed  [${ver}]"
+        return
+    fi
+
+    status_run "Installing Codex via Homebrew..."
+    run_quiet brew install codex
+
+    if command -v codex &>/dev/null; then
+        status_ok "Codex installed"
+        status_run "Run 'codex' and sign in to authenticate"
+    else
+        status_err "Codex install failed — try manually:"
+        status_warn "brew install codex"
+    fi
+}
+
 # Install the anti-slopper writing skill from its canonical repo so Claude
 # Code picks it up at ~/.claude/skills/anti-slopper/SKILL.md. The repo keeps
 # SKILL.md at its root, so the skill dir is just a symlink to the checkout —
 # a git pull is enough to update it. ~/.claude/CLAUDE.md points the global
 # writing-style rules at this path.
 clone_anti_slopper() {
-    step_header "17" "ANTI-SLOPPER SKILL"
+    step_header "18" "ANTI-SLOPPER SKILL"
     local repo_url="https://github.com/marcelolebre/anti-slopper.git"
     local repo_dir="$HOME/Projects/anti-slopper"
     local skill_dir="$HOME/.claude/skills/anti-slopper"
@@ -951,6 +973,7 @@ main() {
     clone_agent_gossip
     setup_lazyvim
     install_claude_code
+    install_codex
     clone_anti_slopper
 
     # ── Issue summary ─────────────────────────────────────────────────

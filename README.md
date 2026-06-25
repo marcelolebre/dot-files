@@ -124,7 +124,12 @@ Installs the [Claude Code](https://claude.ai) CLI tool via its official installe
 
 > **After install:** Run `claude` inside any project directory to authenticate.
 
-### Step 17 — Anti-Slopper Skill
+### Step 17 — Codex CLI
+Installs the [Codex](https://github.com/openai/codex) CLI via Homebrew (`brew install codex`).
+
+> **After install:** Run `codex` and sign in to authenticate.
+
+### Step 18 — Anti-Slopper Skill
 Clones [anti-slopper](https://github.com/marcelolebre/anti-slopper) to `~/Projects/anti-slopper` (runs `git pull --rebase` if it already exists), then symlinks `~/.claude/skills/anti-slopper` to the checkout so Claude Code loads the writing-style skill from `SKILL.md`. The global `~/.claude/CLAUDE.md` rules point at this path.
 
 ---
@@ -135,5 +140,6 @@ Clones [anti-slopper](https://github.com/marcelolebre/anti-slopper) to `~/Projec
 2. Open a **new terminal window** to load the updated Zsh config
 3. Run `nvim` to finish LazyVim plugin installation
 4. Run `claude` in a project directory to log in to Claude Code
-5. Check `~/Projects/agent-gossip` for agent-gossip
-6. The anti-slopper writing skill lives at `~/Projects/anti-slopper`
+5. Run `codex` and sign in to authenticate
+6. Check `~/Projects/agent-gossip` for agent-gossip
+7. The anti-slopper writing skill lives at `~/Projects/anti-slopper`
