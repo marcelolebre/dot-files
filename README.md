@@ -130,7 +130,18 @@ Installs the [Codex](https://github.com/openai/codex) CLI via Homebrew (`brew in
 > **After install:** Run `codex` and sign in to authenticate.
 
 ### Step 18 — Anti-Slopper Skill
-Clones [anti-slopper](https://github.com/marcelolebre/anti-slopper) to `~/Projects/anti-slopper` (runs `git pull --rebase` if it already exists), then symlinks `~/.claude/skills/anti-slopper` to the checkout so Claude Code loads the writing-style skill from `SKILL.md`. The global `~/.claude/CLAUDE.md` rules point at this path.
+Clones [anti-slopper](https://github.com/marcelolebre/anti-slopper) to `~/Projects/anti-slopper` (runs `git pull --rebase` if it already exists), then wires it into both agents from the same checkout:
+- **Claude Code** — symlinks `~/.claude/skills/anti-slopper` to the checkout so it loads the writing-style skill from `SKILL.md`. The global `~/.claude/CLAUDE.md` rules point at this path.
+- **Codex** — symlinks `~/.codex/prompts/anti-slopper.md` to `SKILL.md`, exposing it as the `/anti-slopper` prompt.
+
+Both are symlinks, so a `git pull` in the repo updates both at once.
+
+### Step 19 — Shared Skills (Claude + Codex)
+Installs every skill kept in this repo under `claude/skills/<name>/SKILL.md` into both agents from a single source — no copies:
+- **Claude Code** — symlinks `~/.claude/skills/<name>` to the repo dir (the whole skill, frontmatter and any helper files).
+- **Codex** — symlinks `~/.codex/prompts/<name>.md` to the same `SKILL.md`, exposing it as the `/<name>` prompt.
+
+Drop a new `claude/skills/<name>/SKILL.md` into the repo and it ships to both tools on the next setup run. A `git pull` updates both at once. anti-slopper is skipped here — it has its own published repo (Step 18).
 
 ---
 

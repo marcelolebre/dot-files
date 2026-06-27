@@ -825,16 +825,32 @@ install_codex() {
     fi
 }
 
-# Install the anti-slopper writing skill from its canonical repo so Claude
-# Code picks it up at ~/.claude/skills/anti-slopper/SKILL.md. The repo keeps
-# SKILL.md at its root, so the skill dir is just a symlink to the checkout —
-# a git pull is enough to update it. ~/.claude/CLAUDE.md points the global
-# writing-style rules at this path.
+# Replace a skill symlink with one pointing at `target`. An existing symlink is
+# repointed; a real file/dir left by a manual install is backed up first.
+relink_skill() {
+    local link="$1" target="$2" backup_name="$3"
+    if [[ -L "$link" ]]; then
+        rm "$link"
+    elif [[ -e "$link" ]]; then
+        mkdir -p "$BACKUP_DIR"
+        mv "$link" "$BACKUP_DIR/$backup_name"
+        status_warn "Backed up existing $(basename "$link")"
+    fi
+    ln -s "$target" "$link"
+}
+
+# Install the anti-slopper writing skill from its canonical repo and wire it
+# into both agents. Claude Code reads it at ~/.claude/skills/anti-slopper/SKILL.md;
+# Codex exposes it as the /anti-slopper prompt at ~/.codex/prompts/anti-slopper.md.
+# The repo keeps SKILL.md at its root, so both are symlinks to the checkout —
+# a git pull is enough to update them. ~/.claude/CLAUDE.md points the global
+# writing-style rules at this path. anti-slopper has its own published repo
+# (LICENSE/NOTICE/README), so it lives outside dot-files; personal skills go in
+# claude/skills/ and are installed by install_skills below.
 clone_anti_slopper() {
     step_header "18" "ANTI-SLOPPER SKILL"
     local repo_url="https://github.com/marcelolebre/anti-slopper.git"
     local repo_dir="$HOME/Projects/anti-slopper"
-    local skill_dir="$HOME/.claude/skills/anti-slopper"
 
     mkdir -p "$HOME/Projects"
 
@@ -849,22 +865,51 @@ clone_anti_slopper() {
     fi
 
     if [[ ! -f "$repo_dir/SKILL.md" ]]; then
-        status_warn "SKILL.md not found in repo — skipping skill symlink"
+        status_warn "SKILL.md not found in repo — skipping skill symlinks"
         return
     fi
 
-    # Point the Claude skill dir at the checkout (repoints an old symlink,
-    # backs up a real directory left there by a previous manual install).
-    mkdir -p "$HOME/.claude/skills"
-    if [[ -L "$skill_dir" ]]; then
-        rm "$skill_dir"
-    elif [[ -e "$skill_dir" ]]; then
-        mkdir -p "$BACKUP_DIR"
-        mv "$skill_dir" "$BACKUP_DIR/anti-slopper-skill"
-        status_warn "Backed up existing anti-slopper skill dir"
+    mkdir -p "$HOME/.claude/skills" "$HOME/.codex/prompts"
+    relink_skill "$HOME/.claude/skills/anti-slopper" "$repo_dir" "anti-slopper-skill"
+    status_ok "claude skill  →  $repo_dir"
+    relink_skill "$HOME/.codex/prompts/anti-slopper.md" "$repo_dir/SKILL.md" "anti-slopper-codex-prompt.md"
+    status_ok "codex prompt  →  $repo_dir/SKILL.md"
+}
+
+# Install every skill kept in the dot-files repo (claude/skills/<name>/SKILL.md)
+# into both agents from a single source — no copies. Claude Code reads the whole
+# skill directory at ~/.claude/skills/<name>; Codex reads the same SKILL.md as
+# the /<name> prompt at ~/.codex/prompts/<name>.md. Both are symlinks into the
+# repo, so a `git pull` of dot-files updates both tools at once. Drop a new skill
+# into claude/skills/ and it ships to Claude and Codex on the next setup run.
+install_skills() {
+    step_header "19" "SHARED SKILLS (claude + codex)"
+    local skills_dir="$DOTFILES_DIR/claude/skills"
+
+    if [[ ! -d "$skills_dir" ]]; then
+        status_warn "No claude/skills/ in repo — nothing to install"
+        return
     fi
-    ln -s "$repo_dir" "$skill_dir"
-    status_ok "skill  →  $repo_dir"
+
+    mkdir -p "$HOME/.claude/skills" "$HOME/.codex/prompts"
+
+    local found=0
+    for src in "$skills_dir"/*/; do
+        [[ -d "$src" ]] || continue
+        src="${src%/}"
+        local name; name="$(basename "$src")"
+        [[ "$name" == "anti-slopper" ]] && continue   # has its own published repo
+        if [[ ! -f "$src/SKILL.md" ]]; then
+            status_warn "$name: no SKILL.md — skipping"
+            continue
+        fi
+        found=1
+        relink_skill "$HOME/.claude/skills/$name" "$src" "skill-$name"
+        relink_skill "$HOME/.codex/prompts/$name.md" "$src/SKILL.md" "codex-$name.md"
+        status_ok "$name  →  claude skill + codex /$name"
+    done
+
+    [[ $found -eq 0 ]] && status_warn "No skills in $skills_dir yet (drop a <name>/SKILL.md to add one)"
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -975,6 +1020,7 @@ main() {
     install_claude_code
     install_codex
     clone_anti_slopper
+    install_skills
 
     # ── Issue summary ─────────────────────────────────────────────────
     if [[ ${#ERRORS[@]} -gt 0 || ${#WARNINGS[@]} -gt 0 ]]; then
