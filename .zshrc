@@ -77,6 +77,15 @@ source $ZSH/oh-my-zsh.sh
 # ssh
 # export SSH_KEY_PATH="~/.ssh/rsa_id"
 
+# Load SSH keys whose passphrase is already saved in the macOS keychain into
+# the agent, silently. Without this a fresh shell starts with an empty agent,
+# so the first `git pull` (gpl) prompts for the passphrase. Stores nothing and
+# never prompts — it only loads what's already in the keychain (add a key once
+# with `ssh-add --apple-use-keychain ~/.ssh/id_ed25519`).
+if [[ "$OSTYPE" == darwin* ]] && command -v ssh-add >/dev/null 2>&1; then
+  ssh-add --apple-load-keychain >/dev/null 2>&1
+fi
+
 # Set personal aliases, overriding those provided by oh-my-zsh libs,
 # plugins, and themes. Aliases can be placed here, though oh-my-zsh
 # users are encouraged to define aliases within the ZSH_CUSTOM folder.

@@ -606,6 +606,64 @@ sys.exit(1)
 PY
 }
 
+setup_ssh_keychain() {
+    step_header "20" "SSH KEY + KEYCHAIN"
+
+    if [[ "$OSTYPE" != darwin* ]]; then
+        status_skip "Not macOS — keychain integration unavailable"
+        return
+    fi
+
+    # ── Ensure ~/.ssh/config enables agent + keychain for GitHub ──────
+    # AddKeysToAgent adds the key to the running agent after first use;
+    # UseKeychain reads/stores the passphrase in the login keychain so it's
+    # never typed again. Apple's /usr/bin/ssh supports UseKeychain.
+    local ssh_dir="$HOME/.ssh" ssh_config="$HOME/.ssh/config"
+    mkdir -p "$ssh_dir" && chmod 700 "$ssh_dir"
+
+    if [[ -f "$ssh_config" ]] && grep -qiE '^[[:space:]]*UseKeychain[[:space:]]+yes' "$ssh_config"; then
+        status_ok "~/.ssh/config already has UseKeychain"
+    else
+        cat >> "$ssh_config" << 'SSHCFG'
+
+Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_ed25519
+SSHCFG
+        chmod 600 "$ssh_config"
+        status_ok "Added github.com block to ~/.ssh/config"
+    fi
+
+    # ── Locate a private key ──────────────────────────────────────────
+    local key=""
+    for candidate in "$ssh_dir/id_ed25519" "$ssh_dir/id_rsa"; do
+        [[ -f "$candidate" ]] && { key="$candidate"; break; }
+    done
+
+    if [[ -z "$key" ]]; then
+        status_warn "No SSH key found — create one: ssh-keygen -t ed25519"
+        return
+    fi
+
+    # ── Load any keychain-stored passphrase into the agent (silent) ───
+    ssh-add --apple-load-keychain &>/dev/null
+
+    # ── If the key still isn't loaded, store its passphrase now ───────
+    # This prompts once (interactive setup); afterwards the login shell
+    # loads it silently via `ssh-add --apple-load-keychain` in .zshrc.
+    if ssh-add -l 2>/dev/null | grep -qF "$(ssh-keygen -lf "$key" 2>/dev/null | awk '{print $2}')"; then
+        status_ok "SSH key loaded from keychain ($(basename "$key"))"
+    else
+        status_run "Storing passphrase in keychain (may prompt once)..."
+        if ssh-add --apple-use-keychain "$key" </dev/tty; then
+            status_ok "SSH key saved to keychain ($(basename "$key"))"
+        else
+            status_warn "Could not add key — run: ssh-add --apple-use-keychain $key"
+        fi
+    fi
+}
+
 setup_capslock_karabiner() {
     if [[ -d "/Applications/Karabiner-Elements.app" ]]; then
         status_ok "Karabiner-Elements already installed"
@@ -1015,6 +1073,7 @@ main() {
     setup_vim
     setup_tmux
     set_macos_defaults
+    setup_ssh_keychain
     clone_agent_gossip
     setup_lazyvim
     install_claude_code
