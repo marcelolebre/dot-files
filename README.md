@@ -27,6 +27,7 @@ Installs the following packages via Homebrew (skips any already installed):
 - `zsh` — shell
 - `reattach-to-user-namespace` — tmux clipboard integration on macOS
 - `glab` — GitLab CLI
+- `gh` — GitHub CLI
 
 > Neovim and its LazyVim dependencies (`ripgrep`, `fd`, `lazygit`, `node`) are installed later in step 15, not here.
 

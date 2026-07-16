@@ -119,7 +119,7 @@ install_homebrew() {
 
 install_packages() {
     step_header "02" "CLI PACKAGES"
-    local packages=(git vim tmux zsh reattach-to-user-namespace glab)
+    local packages=(git vim tmux zsh reattach-to-user-namespace glab gh)
     for pkg in "${packages[@]}"; do
         if brew list "$pkg" &>/dev/null; then
             status_ok "${pkg}"
