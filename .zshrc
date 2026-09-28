@@ -114,6 +114,8 @@ alias docker_clean_images="for container_id in \$(docker images -f 'dangling=tru
 
 alias superclaude="claude --dangerously-skip-permissions"
 
+alias supercodex="codex --dangerously-bypass-approvals-and-sandbox"
+
 export PATH="$PATH:$HOME/.rvm/bin"
 
 export ERL_AFLAGS="-kernel shell_history enabled"
